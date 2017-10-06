@@ -127,11 +127,11 @@ func (z *zestRequest) Parse(msg []byte) error {
 	return nil
 }
 
-type ZestClient struct {
+type Client struct {
 	Client *zmq.Socket
 }
 
-func (z *ZestClient) Connect(endpoint string, serverKey string) {
+func (z *Client) Connect(endpoint string, serverKey string) {
 
 	log("Connecting")
 	var err error
@@ -148,7 +148,7 @@ func (z *ZestClient) Connect(endpoint string, serverKey string) {
 
 }
 
-func (z ZestClient) Post(endpoint string, token string, path string, payload string) error {
+func (z Client) Post(endpoint string, token string, path string, payload string) error {
 
 	log("Posting")
 
@@ -175,7 +175,7 @@ func (z ZestClient) Post(endpoint string, token string, path string, payload str
 	return nil
 }
 
-func (z ZestClient) sendRequest(msg []byte) error {
+func (z Client) sendRequest(msg []byte) error {
 
 	log("Sending request:")
 	fmt.Println(hex.Dump(msg))
@@ -191,7 +191,7 @@ func (z ZestClient) sendRequest(msg []byte) error {
 	return nil
 }
 
-func (z ZestClient) handleResponse(msg []byte) error {
+func (z Client) handleResponse(msg []byte) error {
 
 	log("Got response:")
 	fmt.Println(hex.Dump(msg))

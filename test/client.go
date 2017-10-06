@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	zest "github.com/Toshbrown/goZestClient"
 )
 
 func main() {
@@ -11,12 +13,12 @@ func main() {
 	const Path = "/kv/foo" //TODO sending long keys fails !!
 	const Payload = "{\"name\":\"dave\", \"age\":30}"
 	const ReqEndpoint = "tcp://127.0.0.1:5555"
-	const toc = "dasdasdas"
+	const toc = ""
 
-	zestC := ZestClient{}
+	zestC := zest.Client{}
 	zestC.Connect(ReqEndpoint, ServerKey)
 	err := zestC.Post(ReqEndpoint, toc, Path, Payload)
 	if err != nil {
-		log(err.Error())
+		fmt.Println(err.Error())
 	}
 }
