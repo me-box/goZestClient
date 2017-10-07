@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -33,6 +34,31 @@ func toBigendian(val uint16) uint16 {
 	return binary.BigEndian.Uint16(buf)
 }
 
+func pack4_16_4(i uint16, j uint16, k uint16) ([]byte, error) {
+	if i > 15 {
+		return nil, errors.New("i max is 4 bits")
+	}
+	if k > 15 {
+		return nil, errors.New("k max is 4 bits")
+	}
+	if j > 65535 {
+		return nil, errors.New("j max is 16 bits")
+	}
+	var b [3]byte
+	b[0] = byte(i<<4 | (j >> 12 & 0xf))
+	b[1] = byte(j >> 4)
+	b[2] = byte(j<<4 | k)
+	return b[:], nil
+}
+
+func unPack4_16_4(b []byte) (i uint16, j uint16, k uint16) {
+	i = uint16(b[0] >> 4)
+	var mSlice = []byte{b[0]<<4 | b[1]>>4, b[1]<<4 | b[2]>>4}
+	j = binary.BigEndian.Uint16(mSlice)
+	k = uint16(b[2] >> 4)
+	return i, j, k
+}
+
 const zestOptionsHeaderLength = 3
 
 type zestOptions struct {
@@ -46,20 +72,18 @@ func (zo *zestOptions) Marshal() ([]byte, error) {
 	if zo == nil {
 		return nil, errors.New("This should not be nil")
 	}
-	//TODO check len < 65536 length
-	//TODO check token length
 
-	//option length must be bigendian
-	var b [128]byte
 	zo.len = uint16(len(zo.Value))
-	zoLenBigendian := toBigendian(zo.len)
-	b[0] = byte(zo.Number<<4 | zoLenBigendian>>12)
-	//b[1] = byte(zoLenBigendian >> 4) //TODO I'm sure this should be set but does not work when it is !!!!
-	b[2] = byte(zoLenBigendian>>4 | 0xf)
-	copy(b[3:], zo.Value)
 
-	totalLen := zestOptionsHeaderLength + len(zo.Value)
-	return b[:totalLen], nil
+	//pack the header
+	b, err := pack4_16_4(zo.Number, zo.len, 0xf)
+	assertNotError(err)
+
+	//copy in the value
+	//TODO check value length
+	b = append(b[:], zo.Value[:]...)
+
+	return b, nil
 }
 
 func (zo *zestOptions) Parse(b []byte) error {
@@ -91,37 +115,38 @@ func (z *zestRequest) Marshal() ([]byte, error) {
 
 	//option token length must be bigendian
 	z.tkl = uint16(len(z.Token))
-	tklBige := toBigendian(z.tkl)
-	fmt.Println("z.tkl ", z.tkl, "tklBige ", tklBige)
+	tklBigendian := toBigendian(z.tkl)
+	fmt.Println("z.tkl ", z.tkl, "tklBigendian ", tklBigendian)
 	fmt.Println("z.Code ", z.Code)
 	fmt.Println("z.oc ", z.oc)
-	var b [512]byte
-	b[0] = byte(z.Version<<4 | tklBige>>12)
-	b[1] = byte(tklBige >> 4)
-	b[2] = byte(tklBige<<4 | z.oc)
-	b[3] = byte(z.Code)
-	copy(b[4:], z.Token)
 
-	oLen := 0
-	for i := 0; i < int(z.oc); i++ {
-		optBytes, marshalErr := z.Options[i].Marshal()
-		fmt.Println(hex.Dump(optBytes))
-		assertNotError(marshalErr)
-		copy(b[zestHeaderLength+int(z.tkl)+oLen:], optBytes)
-		oLen = oLen + len(optBytes)
+	b, err := pack4_16_4(z.Version, tklBigendian, z.oc)
+	assertNotError(err)
+
+	//copy the code and token
+	b = append(b, byte(z.Code))
+
+	if z.tkl > 0 {
+		copy(b[4:], z.Token)
 	}
 
-	payloadOffset := zestHeaderLength + oLen
-	copy(b[payloadOffset:], z.Payload)
+	//append the options
+	for i := 0; i < int(z.oc); i++ {
+		optBytes, marshalErr := z.Options[i].Marshal()
+		assertNotError(marshalErr)
+		b = append(b[:], optBytes[:]...)
+	}
 
-	totalLen := payloadOffset + len(z.Payload)
-	return b[:totalLen], nil
+	//add the payload
+	b = append(b[:], z.Payload[:]...)
+
+	return b, nil
 }
 
 func (z *zestRequest) Parse(msg []byte) error {
 
 	//TODO handle options and message size
-	z.Version = uint16(msg[0] >> 4)
+	z.Version, z.tkl, z.oc = unPack4_16_4(msg)
 	z.Code = uint16(msg[3])
 
 	return nil
@@ -161,13 +186,14 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 
 	//post options
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
-	//hostname, _ := os.Hostname()
-	//zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname}) //TODO sending long keys fails !!
-	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: "moby"}) //TODO sending long keys fails !!
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: "2"})   // 2 is ascii equivalent of 50 representing json
+	hostname, _ := os.Hostname()
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: "2"}) // 2 is ascii equivalent of 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
+
+	fmt.Println(hex.Dump(bytes[:]))
 
 	reqErr := z.sendRequest(bytes)
 	assertNotError(reqErr)
