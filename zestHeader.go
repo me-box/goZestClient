@@ -2,7 +2,6 @@ package zest
 
 import (
 	"errors"
-	"fmt"
 )
 
 type zestHeader struct {
@@ -28,9 +27,6 @@ func (z *zestHeader) Marshal() ([]byte, error) {
 	//option token length must be bigendian
 	z.tkl = uint16(len(z.Token))
 	tklBigendian := toBigendian(z.tkl)
-	fmt.Println("z.tkl ", z.tkl, "tklBigendian ", tklBigendian)
-	fmt.Println("z.Code ", z.Code)
-	fmt.Println("z.oc ", z.oc)
 
 	b, err := pack4_16_4(z.Version, tklBigendian, z.oc)
 	assertNotError(err)
@@ -60,6 +56,13 @@ func (z *zestHeader) Parse(msg []byte) error {
 	//TODO handle options and message size
 	z.Version, z.tkl, z.oc = unPack4_16_4(msg)
 	z.Code = uint16(msg[3])
+
+	if z.oc > 0 {
+		//TODO handle options
+	}
+
+	//TODO start of payload is dependent on oc
+	z.Payload = string(msg[5:])
 
 	return nil
 }

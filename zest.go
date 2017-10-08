@@ -102,13 +102,41 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 
 	fmt.Println(hex.Dump(bytes[:]))
 
-	reqErr := z.sendRequest(bytes)
+	_, reqErr := z.sendRequest(bytes)
 	assertNotError(reqErr)
 	log("=> Created")
 	return nil
 }
 
-func (z Client) sendRequest(msg []byte) error {
+func (z Client) Get(endpoint string, token string, path string) (string, error) {
+
+	zr := zestHeader{}
+	zr.Version = 1
+	zr.Code = 1
+	zr.Token = token
+
+	//options
+	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
+	hostname, _ := os.Hostname()
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+
+	bytes, marshalErr := zr.Marshal()
+	assertNotError(marshalErr)
+
+	fmt.Println(hex.Dump(bytes[:]))
+
+	resp, reqErr := z.sendRequest(bytes)
+	assertNotError(reqErr)
+	log("=> Received")
+
+	return resp.Payload, nil
+}
+
+func (z Client) sendRequest(msg []byte) (zestHeader, error) {
+
+	if z.Client == nil {
+		return zestHeader{}, errors.New("Connection is closed can't send data")
+	}
 
 	log("Sending request:")
 	fmt.Println(hex.Dump(msg))
@@ -118,13 +146,13 @@ func (z Client) sendRequest(msg []byte) error {
 	resp, err := z.Client.RecvBytes(0)
 	assertNotError(err)
 
-	errResp := z.handleResponse(resp)
+	parsedResp, errResp := z.handleResponse(resp)
 	assertNotError(errResp)
 
-	return nil
+	return parsedResp, nil
 }
 
-func (z Client) handleResponse(msg []byte) error {
+func (z Client) handleResponse(msg []byte) (zestHeader, error) {
 
 	log("Got response:")
 	fmt.Println(hex.Dump(msg))
@@ -138,15 +166,17 @@ func (z Client) handleResponse(msg []byte) error {
 
 	switch zr.Code {
 	case 65:
-		return nil
+		//created
+		return zr, nil
 	case 69:
-		return nil
+		//content
+		return zr, nil
 	case 128:
-		return errors.New("bad request")
+		return zr, errors.New("bad request")
 	case 129:
-		return errors.New("unauthorized")
+		return zr, errors.New("unauthorized")
 	case 143:
-		return errors.New("unsupported content format")
+		return zr, errors.New("unsupported content format")
 	}
-	return errors.New("invalid code:" + strconv.Itoa(int(zr.Code)))
+	return zr, errors.New("invalid code:" + strconv.Itoa(int(zr.Code)))
 }
