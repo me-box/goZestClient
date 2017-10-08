@@ -10,7 +10,7 @@ func main() {
 	fmt.Println("Starting client")
 
 	const ServerKey = "vl6wu0A@XP?}Or/&BR#LSxn>A+}L)p44/W[wXL3<"
-	const Path = "/kv/foo" //TODO sending long keys fails !!
+	const Path = "/kv/foo"
 	const Payload = "{\"name\":\"dave\", \"age\":30}"
 	const ReqEndpoint = "tcp://127.0.0.1:5555"
 	const toc = ""
