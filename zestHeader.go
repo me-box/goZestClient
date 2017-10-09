@@ -62,7 +62,9 @@ func (z *zestHeader) Parse(msg []byte) error {
 	}
 
 	//TODO start of payload is dependent on oc
-	z.Payload = string(msg[5:])
+	if len(msg) > 5 {
+		z.Payload = string(msg[5:])
+	}
 
 	return nil
 }

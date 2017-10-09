@@ -102,7 +102,7 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 
 	fmt.Println(hex.Dump(bytes[:]))
 
-	_, reqErr := z.sendRequest(bytes)
+	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
 	log("=> Created")
 	return nil
@@ -125,14 +125,54 @@ func (z Client) Get(endpoint string, token string, path string) (string, error) 
 
 	fmt.Println(hex.Dump(bytes[:]))
 
-	resp, reqErr := z.sendRequest(bytes)
+	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
 	log("=> Received")
 
 	return resp.Payload, nil
 }
 
-func (z Client) sendRequest(msg []byte) (zestHeader, error) {
+func (z Client) Observe(endpoint string, token string, path string) error {
+
+	zr := zestHeader{}
+	zr.Version = 1
+	zr.Code = 1
+	zr.Token = token
+
+	//options
+	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
+	hostname, _ := os.Hostname()
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 6, Value: ""})
+
+	bytes, marshalErr := zr.Marshal()
+	assertNotError(marshalErr)
+
+	fmt.Println(hex.Dump(bytes[:]))
+
+	reqErr := z.sendRequest(bytes)
+	assertNotError(reqErr)
+
+	return nil
+
+}
+
+func (z Client) sendRequest(msg []byte) error {
+
+	if z.Client == nil {
+		return errors.New("Connection is closed can't send data")
+	}
+
+	log("Sending request:")
+	fmt.Println(hex.Dump(msg))
+
+	_, err := z.Client.SendBytes(msg, 0)
+	assertNotError(err)
+
+	return nil
+}
+
+func (z Client) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) {
 
 	if z.Client == nil {
 		return zestHeader{}, errors.New("Connection is closed can't send data")
@@ -143,6 +183,7 @@ func (z Client) sendRequest(msg []byte) (zestHeader, error) {
 
 	z.Client.SendBytes(msg, 0)
 
+	//TODO ADD TIME OUT
 	resp, err := z.Client.RecvBytes(0)
 	assertNotError(err)
 

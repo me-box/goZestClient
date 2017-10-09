@@ -17,15 +17,20 @@ func main() {
 
 	zestC := zest.Client{}
 	zestC.Connect(ReqEndpoint, ServerKey)
-	/*err := zestC.Post(ReqEndpoint, toc, Path, Payload)
+	err := zestC.Post(ReqEndpoint, toc, Path, Payload)
 	if err != nil {
 		fmt.Println(err.Error())
-	}*/
+	}
 
 	value, err := zestC.Get(ReqEndpoint, toc, Path)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 	fmt.Println("Value returned: ", value)
+
+	obsErr := zestC.Observe(ReqEndpoint, toc, Path)
+	if obsErr != nil {
+		fmt.Println(obsErr.Error())
+	}
 
 }
