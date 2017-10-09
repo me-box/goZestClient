@@ -5,10 +5,9 @@ import (
 )
 
 type zestHeader struct {
-	Version uint16 //4
+	oc      uint8  //8
+	Code    uint8  //8
 	tkl     uint16 //16
-	oc      uint16 //4
-	Code    uint16 //8
 	Token   string
 	Options []zestOptions
 	Payload string
@@ -19,20 +18,21 @@ func (z *zestHeader) Marshal() ([]byte, error) {
 		return nil, errors.New("This should not be nil")
 	}
 	//TODO check token length
-	//TODO number of options < 16
+	//TODO number of options < 8
 	//TODO check token length
 
-	z.oc = uint16(len(z.Options))
+	z.oc = uint8(len(z.Options))
 
 	//option token length must be bigendian
 	z.tkl = uint16(len(z.Token))
 	tklBigendian := toBigendian(z.tkl)
 
-	b, err := pack4_16_4(z.Version, tklBigendian, z.oc)
-	assertNotError(err)
-
-	//copy the code and token
+	var b []byte
 	b = append(b, byte(z.Code))
+	b = append(b, byte(z.oc))
+	packed, err := pack_16(tklBigendian)
+	assertNotError(err)
+	b = append(b, packed[:]...)
 
 	if z.tkl > 0 {
 		copy(b[4:], z.Token)
@@ -52,10 +52,14 @@ func (z *zestHeader) Marshal() ([]byte, error) {
 }
 
 func (z *zestHeader) Parse(msg []byte) error {
-
+	if len(msg) < 4 {
+		return errors.New("Can't parse header not enough bytes")
+	}
 	//TODO handle options and message size
-	z.Version, z.tkl, z.oc = unPack4_16_4(msg)
-	z.Code = uint16(msg[3])
+	z.Code = uint8(msg[0])
+	z.oc = uint8(msg[1])
+
+	z.tkl, _ = unPack_16(msg[2:4])
 
 	if z.oc > 0 {
 		//TODO handle options

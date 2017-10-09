@@ -34,29 +34,16 @@ func toBigendian(val uint16) uint16 {
 	return binary.BigEndian.Uint16(buf)
 }
 
-func pack4_16_4(i uint16, j uint16, k uint16) ([]byte, error) {
-	if i > 15 {
-		return nil, errors.New("i max is 4 bits")
-	}
-	if k > 15 {
-		return nil, errors.New("k max is 4 bits")
-	}
-	if j > 65535 {
-		return nil, errors.New("j max is 16 bits")
-	}
-	var b [3]byte
-	b[0] = byte(i<<4 | (j >> 12 & 0xf))
-	b[1] = byte(j >> 4)
-	b[2] = byte(j<<4 | k)
+func pack_16(i uint16) ([]byte, error) {
+	var b [2]byte
+	b[0] = byte(i >> 8 & 0xff)
+	b[1] = byte(i & 0xff)
 	return b[:], nil
 }
 
-func unPack4_16_4(b []byte) (i uint16, j uint16, k uint16) {
-	i = uint16(b[0] >> 4)
-	var mSlice = []byte{b[0]<<4 | b[1]>>4, b[1]<<4 | b[2]>>4}
-	j = binary.BigEndian.Uint16(mSlice)
-	k = uint16(b[2] >> 4)
-	return i, j, k
+func unPack_16(b []byte) (uint16, error) {
+	i := binary.BigEndian.Uint16(b[:])
+	return i, nil
 }
 
 type Client struct {
@@ -86,7 +73,6 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 
 	//post request
 	zr := zestHeader{}
-	zr.Version = 1
 	zr.Code = 2
 	zr.Token = token
 	zr.Payload = payload
@@ -111,7 +97,6 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 func (z Client) Get(endpoint string, token string, path string) (string, error) {
 
 	zr := zestHeader{}
-	zr.Version = 1
 	zr.Code = 1
 	zr.Token = token
 
@@ -135,7 +120,6 @@ func (z Client) Get(endpoint string, token string, path string) (string, error) 
 func (z Client) Observe(endpoint string, token string, path string) error {
 
 	zr := zestHeader{}
-	zr.Version = 1
 	zr.Code = 1
 	zr.Token = token
 
