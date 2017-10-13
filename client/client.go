@@ -15,8 +15,7 @@ func main() {
 	const ReqEndpoint = "tcp://127.0.0.1:5555"
 	const toc = ""
 
-	zestC := zest.Client{}
-	zestC.Connect(ReqEndpoint, ServerKey)
+	zestC := zest.New(ReqEndpoint, ServerKey)
 	err := zestC.Post(ReqEndpoint, toc, Path, Payload)
 	if err != nil {
 		fmt.Println(err.Error())

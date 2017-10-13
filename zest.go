@@ -46,28 +46,31 @@ func unPack_16(b []byte) (uint16, error) {
 	return i, nil
 }
 
-type Client struct {
-	Client *zmq.Socket
+type ZestClient struct {
+	ZMQsoc *zmq.Socket
 }
 
-func (z *Client) Connect(endpoint string, serverKey string) {
+//New returns a ZestClient connected to endpoint using serverKey as an identity
+func New(endpoint string, serverKey string) ZestClient {
 
+	z := ZestClient{}
 	log("Connecting")
 	var err error
-	z.Client, err = zmq.NewSocket(zmq.REQ)
+	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
 	assertNotError(err)
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
 
-	err = z.Client.ClientAuthCurve(serverKey, clientPublic, clientSecret)
+	err = z.ZMQsoc.ClientAuthCurve(serverKey, clientPublic, clientSecret)
 	assertNotError(err)
 
-	err = z.Client.Connect(endpoint)
+	err = z.ZMQsoc.Connect(endpoint)
 	assertNotError(err)
 
+	return z
 }
 
-func (z Client) Post(endpoint string, token string, path string, payload string) error {
+func (z ZestClient) Post(endpoint string, token string, path string, payload string) error {
 
 	log("Posting")
 
@@ -94,7 +97,7 @@ func (z Client) Post(endpoint string, token string, path string, payload string)
 	return nil
 }
 
-func (z Client) Get(endpoint string, token string, path string) (string, error) {
+func (z ZestClient) Get(endpoint string, token string, path string) (string, error) {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -117,7 +120,7 @@ func (z Client) Get(endpoint string, token string, path string) (string, error) 
 	return resp.Payload, nil
 }
 
-func (z Client) Observe(endpoint string, token string, path string) error {
+func (z ZestClient) Observe(endpoint string, token string, path string) error {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -141,34 +144,34 @@ func (z Client) Observe(endpoint string, token string, path string) error {
 
 }
 
-func (z Client) sendRequest(msg []byte) error {
+func (z ZestClient) sendRequest(msg []byte) error {
 
-	if z.Client == nil {
+	if z.ZMQsoc == nil {
 		return errors.New("Connection is closed can't send data")
 	}
 
 	log("Sending request:")
 	fmt.Println(hex.Dump(msg))
 
-	_, err := z.Client.SendBytes(msg, 0)
+	_, err := z.ZMQsoc.SendBytes(msg, 0)
 	assertNotError(err)
 
 	return nil
 }
 
-func (z Client) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) {
+func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) {
 
-	if z.Client == nil {
+	if z.ZMQsoc == nil {
 		return zestHeader{}, errors.New("Connection is closed can't send data")
 	}
 
 	log("Sending request:")
 	fmt.Println(hex.Dump(msg))
 
-	z.Client.SendBytes(msg, 0)
+	z.ZMQsoc.SendBytes(msg, 0)
 
 	//TODO ADD TIME OUT
-	resp, err := z.Client.RecvBytes(0)
+	resp, err := z.ZMQsoc.RecvBytes(0)
 	assertNotError(err)
 
 	parsedResp, errResp := z.handleResponse(resp)
@@ -177,7 +180,7 @@ func (z Client) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) {
 	return parsedResp, nil
 }
 
-func (z Client) handleResponse(msg []byte) (zestHeader, error) {
+func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 
 	log("Got response:")
 	fmt.Println(hex.Dump(msg))
