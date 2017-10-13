@@ -15,6 +15,7 @@ func main() {
 	Token := *flag.String("--token", "", "Set set access token")
 	Payload := *flag.String("--payload", "{\"name\":\"dave\", \"age\":30}", "Set the uri path for POST and GET")
 	ReqEndpoint := *flag.String("--request-endpoint", "tcp://127.0.0.1:5555", "set the request/reply endpoint")
+	flag.Parse()
 
 	zestC := zest.New(ReqEndpoint, ServerKey)
 	err := zestC.Post(ReqEndpoint, Token, Path, Payload)

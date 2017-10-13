@@ -25,17 +25,16 @@ func (z *zestHeader) Marshal() ([]byte, error) {
 
 	//option token length must be bigendian
 	z.tkl = uint16(len(z.Token))
-	tklBigendian := toBigendian(z.tkl)
 
 	var b []byte
 	b = append(b, byte(z.Code))
 	b = append(b, byte(z.oc))
-	packed, err := pack_16(tklBigendian)
+	packed, err := pack_16(z.tkl)
 	assertNotError(err)
 	b = append(b, packed[:]...)
 
 	if z.tkl > 0 {
-		copy(b[4:], z.Token)
+		b = append(b, []byte(z.Token)...)
 	}
 
 	//append the options
