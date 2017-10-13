@@ -15,7 +15,7 @@ $ docker logs zest -f
 ## Testing
 ```bash
 
-cd test
+cd client
 go run client.go
 
 ```
