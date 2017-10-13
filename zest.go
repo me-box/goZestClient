@@ -89,8 +89,6 @@ func (z ZestClient) Post(endpoint string, token string, path string, payload str
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
 
-	fmt.Println(hex.Dump(bytes[:]))
-
 	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
 	log("=> Created")
@@ -98,6 +96,8 @@ func (z ZestClient) Post(endpoint string, token string, path string, payload str
 }
 
 func (z ZestClient) Get(endpoint string, token string, path string) (string, error) {
+
+	log("Getting")
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -111,11 +111,8 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
 
-	fmt.Println(hex.Dump(bytes[:]))
-
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
-	log("=> Received")
 
 	return resp.Payload, nil
 }
