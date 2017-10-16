@@ -54,19 +54,30 @@ func (z *zestHeader) Parse(msg []byte) error {
 	if len(msg) < 4 {
 		return errors.New("Can't parse header not enough bytes")
 	}
-	//TODO handle options and message size
+
 	z.Code = uint8(msg[0])
 	z.oc = uint8(msg[1])
-
 	z.tkl, _ = unPack_16(msg[2:4])
 
-	if z.oc > 0 {
-		//TODO handle options
-	}
+	if len(msg) >= 5 {
+		var remainingBytes = msg[5:]
+		if z.oc > 0 {
+			var err error
+			for i := 0; i < int(z.oc); i++ {
+				zo := zestOptions{}
+				remainingBytes, err = zo.Parse(remainingBytes)
+				if err != nil {
+					return errors.New("Error decoding options")
+				} else {
+					z.Options = append(z.Options, zo)
+				}
 
-	//TODO start of payload is dependent on oc
-	if len(msg) > 5 {
-		z.Payload = string(msg[5:])
+			}
+		}
+
+		if len(remainingBytes) > 0 {
+			z.Payload = string(remainingBytes)
+		}
 	}
 
 	return nil

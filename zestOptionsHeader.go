@@ -29,7 +29,19 @@ func (zo *zestOptions) Marshal() ([]byte, error) {
 	return b, nil
 }
 
-func (zo *zestOptions) Parse(b []byte) error {
+func (zo *zestOptions) Parse(b []byte) ([]byte, error) {
 
-	return nil
+	if len(b) < 3 {
+		return nil, errors.New("Not enough bytes to Unmarshal")
+	}
+
+	zo.Number = b[0]
+	zo.len, _ = unPack_16(b[1:2])
+	zo.Value = string(b[3 : 3+zo.len])
+
+	if len(b) > (3 + int(zo.len)) {
+		return b[3+zo.len:], nil
+	}
+
+	return nil, nil
 }

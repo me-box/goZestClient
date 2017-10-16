@@ -42,6 +42,9 @@ func pack_16(i uint16) ([]byte, error) {
 }
 
 func unPack_16(b []byte) (uint16, error) {
+	if len(b) < 2 {
+		return uint16(0), errors.New("Not enough bytes to unpack")
+	}
 	i := binary.BigEndian.Uint16(b[:])
 	return i, nil
 }
@@ -107,6 +110,7 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: "2"}) // 2 is ascii equivalent of 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
