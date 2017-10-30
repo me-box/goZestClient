@@ -18,9 +18,8 @@ func (zo *zestOptions) Marshal() ([]byte, error) {
 	//pack the header
 	var b []byte
 	b = append(b, zo.Number)
-	packed, err := pack_16(zo.len)
+	packed := pack_16(zo.len)
 	b = append(b, packed[:]...)
-	assertNotError(err)
 
 	//copy in the value
 	//TODO check value length

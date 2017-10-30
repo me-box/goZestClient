@@ -34,11 +34,11 @@ func toBigendian(val uint16) uint16 {
 	return binary.BigEndian.Uint16(buf)
 }
 
-func pack_16(i uint16) ([]byte, error) {
+func pack_16(i uint16) []byte {
 	var b [2]byte
 	b[0] = byte(i >> 8 & 0xff)
 	b[1] = byte(i & 0xff)
-	return b[:], nil
+	return b[:]
 }
 
 func unPack_16(b []byte) (uint16, error) {
@@ -49,24 +49,43 @@ func unPack_16(b []byte) (uint16, error) {
 	return i, nil
 }
 
+func pack_32(i uint32) []byte {
+	var b [4]byte
+	b[0] = byte(i >> 24 & 0xff)
+	b[1] = byte(i >> 16 & 0xff)
+	b[2] = byte(i >> 8 & 0xff)
+	b[3] = byte(i & 0xff)
+	return b[:]
+}
+
 type ZestClient struct {
-	ZMQsoc *zmq.Socket
+	ZMQsoc         *zmq.Socket
+	serverKey      string
+	endpoint       string
+	dealerEndpoint string
 }
 
 //New returns a ZestClient connected to endpoint using serverKey as an identity
-func New(endpoint string, serverKey string) ZestClient {
+func New(endpoint string, dealerEndpoint string, serverKey string) ZestClient {
 
 	z := ZestClient{}
 	log("Connecting")
 	var err error
 	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
 	assertNotError(err)
+
+	z.ZMQsoc.Monitor("inproc://monitor1", zmq.EVENT_ALL)
+	go rep_socket_monitor("zmqSoc:: ", "inproc://monitor1")
+
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
 
 	err = z.ZMQsoc.ClientAuthCurve(serverKey, clientPublic, clientSecret)
 	assertNotError(err)
 
+	z.serverKey = serverKey
+	z.dealerEndpoint = dealerEndpoint
+	z.endpoint = endpoint
 	err = z.ZMQsoc.Connect(endpoint)
 	assertNotError(err)
 
@@ -87,7 +106,7 @@ func (z ZestClient) Post(endpoint string, token string, path string, payload str
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: "2"}) // 2 is ascii equivalent of 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
@@ -110,7 +129,7 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: "2"}) // 2 is ascii equivalent of 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
@@ -121,7 +140,7 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(endpoint string, token string, path string) error {
+func (z ZestClient) Observe(endpoint string, token string, path string) (<-chan []byte, error) {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -132,16 +151,20 @@ func (z ZestClient) Observe(endpoint string, token string, path string) error {
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 6, Value: ""})
-
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(60))})
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
 
 	fmt.Println(hex.Dump(bytes[:]))
 
-	reqErr := z.sendRequest(bytes)
+	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
 
-	return nil
+	dataChan, err := z.readFromRouterSocket(resp.Payload)
+	assertNotError(err)
+
+	return dataChan, nil
 
 }
 
@@ -179,6 +202,72 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	assertNotError(errResp)
 
 	return parsedResp, nil
+}
+
+func rep_socket_monitor(label string, addr string) {
+	s, err := zmq.NewSocket(zmq.PAIR)
+	if err != nil {
+		fmt.Println(label, err)
+	}
+	err = s.Connect(addr)
+	if err != nil {
+		fmt.Println(label, err)
+	}
+	for {
+		a, b, c, err := s.RecvEvent(0)
+		if err != nil {
+			fmt.Println(label, err)
+			break
+		}
+		fmt.Println(label, a, b, c)
+	}
+	s.Close()
+}
+
+func (z *ZestClient) readFromRouterSocket(identity string) (<-chan []byte, error) {
+
+	//TODO ADD TIME OUT
+	dealer, err := zmq.NewSocket(zmq.DEALER)
+	assertNotError(err)
+
+	err = dealer.SetIdentity(identity)
+	assertNotError(err)
+
+	dealer.Monitor("inproc://monitor2", zmq.EVENT_ALL)
+	go rep_socket_monitor("dealerSoc::", "inproc://monitor2")
+
+	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
+	assertNotError(err)
+	err = dealer.ClientAuthCurve(z.serverKey, clientPublic, clientSecret)
+	assertNotError(err)
+
+	connError := dealer.Connect(z.dealerEndpoint)
+	assertNotError(connError)
+
+	dataChan := make(chan []byte)
+	go func(output chan<- []byte) {
+		for {
+			fmt.Println("Waiting for response on id ", identity, " .....")
+			resp, err := dealer.RecvBytes(0)
+			assertNotError(err)
+			output <- resp
+		}
+	}(dataChan)
+
+	/*time.Sleep(time.Second)
+	fmt.Println("Waiting for response on id ", identity, " .....")
+	resp, err := dealer.Recv(0)
+	fmt.Println("Waiting for response on id ", identity, " .....")
+	time.Sleep(time.Second)
+	resp, err = dealer.Recv(0)
+	fmt.Println("Waiting for response on id ", identity, " .....")
+	time.Sleep(time.Second)
+	resp, err = dealer.Recv(0)
+
+	fmt.Println(resp, err)
+	time.Sleep(time.Second)*/
+
+	return dataChan, nil
 }
 
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
