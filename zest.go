@@ -74,9 +74,6 @@ func New(endpoint string, dealerEndpoint string, serverKey string) ZestClient {
 	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
 	assertNotError(err)
 
-	z.ZMQsoc.Monitor("inproc://monitor1", zmq.EVENT_ALL)
-	go rep_socket_monitor("zmqSoc:: ", "inproc://monitor1")
-
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
 
@@ -140,7 +137,7 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(endpoint string, token string, path string) (<-chan []byte, error) {
+func (z ZestClient) Observe(endpoint string, token string, path string) (<-chan zestHeader, error) {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -204,27 +201,7 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	return parsedResp, nil
 }
 
-func rep_socket_monitor(label string, addr string) {
-	s, err := zmq.NewSocket(zmq.PAIR)
-	if err != nil {
-		fmt.Println(label, err)
-	}
-	err = s.Connect(addr)
-	if err != nil {
-		fmt.Println(label, err)
-	}
-	for {
-		a, b, c, err := s.RecvEvent(0)
-		if err != nil {
-			fmt.Println(label, err)
-			break
-		}
-		fmt.Println(label, a, b, c)
-	}
-	s.Close()
-}
-
-func (z *ZestClient) readFromRouterSocket(identity string) (<-chan []byte, error) {
+func (z *ZestClient) readFromRouterSocket(identity string) (<-chan zestHeader, error) {
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
@@ -232,9 +209,6 @@ func (z *ZestClient) readFromRouterSocket(identity string) (<-chan []byte, error
 
 	err = dealer.SetIdentity(identity)
 	assertNotError(err)
-
-	dealer.Monitor("inproc://monitor2", zmq.EVENT_ALL)
-	go rep_socket_monitor("dealerSoc::", "inproc://monitor2")
 
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
@@ -244,28 +218,18 @@ func (z *ZestClient) readFromRouterSocket(identity string) (<-chan []byte, error
 	connError := dealer.Connect(z.dealerEndpoint)
 	assertNotError(connError)
 
-	dataChan := make(chan []byte)
-	go func(output chan<- []byte) {
+	dataChan := make(chan zestHeader)
+	go func(output chan<- zestHeader) {
 		for {
 			fmt.Println("Waiting for response on id ", identity, " .....")
 			resp, err := dealer.RecvBytes(0)
 			assertNotError(err)
-			output <- resp
+			parsedResp, errResp := z.handleResponse(resp)
+			assertNotError(errResp)
+
+			output <- parsedResp
 		}
 	}(dataChan)
-
-	/*time.Sleep(time.Second)
-	fmt.Println("Waiting for response on id ", identity, " .....")
-	resp, err := dealer.Recv(0)
-	fmt.Println("Waiting for response on id ", identity, " .....")
-	time.Sleep(time.Second)
-	resp, err = dealer.Recv(0)
-	fmt.Println("Waiting for response on id ", identity, " .....")
-	time.Sleep(time.Second)
-	resp, err = dealer.Recv(0)
-
-	fmt.Println(resp, err)
-	time.Sleep(time.Second)*/
 
 	return dataChan, nil
 }
