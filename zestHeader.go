@@ -29,8 +29,7 @@ func (z *zestHeader) Marshal() ([]byte, error) {
 	var b []byte
 	b = append(b, byte(z.Code))
 	b = append(b, byte(z.oc))
-	packed, err := pack_16(z.tkl)
-	assertNotError(err)
+	packed := pack_16(z.tkl)
 	b = append(b, packed[:]...)
 
 	if z.tkl > 0 {

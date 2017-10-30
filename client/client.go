@@ -17,7 +17,7 @@ func main() {
 	Payload := flag.String("payload", "{\"name\":\"dave\", \"age\":30}", "Set the uri path for POST and GET")
 	ReqEndpoint := flag.String("request-endpoint", "tcp://127.0.0.1:5555", "set the request/reply endpoint")
 	DealerEndpoint := flag.String("router-endpoint", "tcp://127.0.0.1:5556", "set the router/dealer endpoint")
-	Mode := flag.String("method", "GET", "set the mode of operation")
+	Mode := flag.String("method", "OBSERVE", "set the mode of operation")
 	flag.Parse()
 
 	zestC := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey)
