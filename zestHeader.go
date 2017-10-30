@@ -59,7 +59,7 @@ func (z *zestHeader) Parse(msg []byte) error {
 	z.tkl, _ = unPack_16(msg[2:4])
 
 	if len(msg) >= 5 {
-		var remainingBytes = msg[5:]
+		var remainingBytes = msg[4:]
 		if z.oc > 0 {
 			var err error
 			for i := 0; i < int(z.oc); i++ {
