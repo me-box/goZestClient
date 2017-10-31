@@ -42,6 +42,7 @@ func main() {
 		fmt.Println("Blocking waiting for data on chan ", dataChan)
 		resp := <-dataChan
 		fmt.Println("Value returned from observer: ", string(resp.Payload))
+
 	default:
 		fmt.Println("Unknown method try GET,POST or OBSERVE")
 	}

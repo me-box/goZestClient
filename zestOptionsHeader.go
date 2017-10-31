@@ -3,7 +3,7 @@ package zest
 import "errors"
 
 type zestOptions struct {
-	Number uint8  //8
+	Number uint16 //16
 	len    uint16 //16
 	Value  string
 }
@@ -17,12 +17,12 @@ func (zo *zestOptions) Marshal() ([]byte, error) {
 
 	//pack the header
 	var b []byte
-	b = append(b, zo.Number)
-	packed := pack_16(zo.len)
+	packed := pack_16(zo.Number)
+	b = append(b, packed[:]...)
+	packed = pack_16(zo.len)
 	b = append(b, packed[:]...)
 
 	//copy in the value
-	//TODO check value length
 	b = append(b[:], zo.Value[:]...)
 
 	return b, nil
@@ -30,16 +30,16 @@ func (zo *zestOptions) Marshal() ([]byte, error) {
 
 func (zo *zestOptions) Parse(b []byte) ([]byte, error) {
 
-	if len(b) < 3 {
+	if len(b) < 4 {
 		return nil, errors.New("Not enough bytes to Unmarshal")
 	}
 
-	zo.Number = b[0]
-	zo.len, _ = unPack_16(b[1:3])
+	zo.Number, _ = unPack_16(b[0:2])
+	zo.len, _ = unPack_16(b[2:4])
 	zo.Value = string(b[4 : 4+zo.len])
 
-	if len(b) > (3 + int(zo.len)) {
-		return b[3+zo.len:], nil
+	if len(b) > (4 + int(zo.len)) {
+		return b[4+zo.len:], nil
 	}
 
 	return nil, nil

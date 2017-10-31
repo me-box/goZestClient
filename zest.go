@@ -153,12 +153,10 @@ func (z ZestClient) Observe(endpoint string, token string, path string) (<-chan 
 	bytes, marshalErr := zr.Marshal()
 	assertNotError(marshalErr)
 
-	fmt.Println(hex.Dump(bytes[:]))
-
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
 
-	dataChan, err := z.readFromRouterSocket(resp.Payload)
+	dataChan, err := z.readFromRouterSocket(resp)
 	assertNotError(err)
 
 	return dataChan, nil
@@ -172,7 +170,7 @@ func (z ZestClient) sendRequest(msg []byte) error {
 	}
 
 	log("Sending request:")
-	fmt.Println(hex.Dump(msg))
+	log("\n" + hex.Dump(msg))
 
 	_, err := z.ZMQsoc.SendBytes(msg, 0)
 	assertNotError(err)
@@ -187,7 +185,7 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	}
 
 	log("Sending request:")
-	fmt.Println(hex.Dump(msg))
+	log("\n" + hex.Dump(msg))
 
 	z.ZMQsoc.SendBytes(msg, 0)
 
@@ -201,18 +199,25 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	return parsedResp, nil
 }
 
-func (z *ZestClient) readFromRouterSocket(identity string) (<-chan zestHeader, error) {
+func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader, error) {
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
 	assertNotError(err)
 
-	err = dealer.SetIdentity(identity)
+	err = dealer.SetIdentity(header.Payload)
 	assertNotError(err)
 
+	serverKey := ""
+	for _, option := range header.Options {
+		if option.Number == 2048 {
+			serverKey = option.Value
+		}
+	}
+	log("Using serverKey " + serverKey)
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
-	err = dealer.ClientAuthCurve(z.serverKey, clientPublic, clientSecret)
+	err = dealer.ClientAuthCurve(serverKey, clientPublic, clientSecret)
 	assertNotError(err)
 
 	connError := dealer.Connect(z.dealerEndpoint)
@@ -221,7 +226,7 @@ func (z *ZestClient) readFromRouterSocket(identity string) (<-chan zestHeader, e
 	dataChan := make(chan zestHeader)
 	go func(output chan<- zestHeader) {
 		for {
-			fmt.Println("Waiting for response on id ", identity, " .....")
+			log("Waiting for response on id " + header.Payload + " .....")
 			resp, err := dealer.RecvBytes(0)
 			assertNotError(err)
 			parsedResp, errResp := z.handleResponse(resp)
@@ -237,14 +242,12 @@ func (z *ZestClient) readFromRouterSocket(identity string) (<-chan zestHeader, e
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 
 	log("Got response:")
-	fmt.Println(hex.Dump(msg))
+	log("\n" + hex.Dump(msg))
 
 	zr := zestHeader{}
 
 	err := zr.Parse(msg)
 	assertNotError(err)
-
-	fmt.Println(zr)
 
 	switch zr.Code {
 	case 65:
