@@ -38,8 +38,8 @@ func (zo *zestOptions) Parse(b []byte) ([]byte, error) {
 	zo.len, _ = unPack_16(b[1:3])
 	zo.Value = string(b[4 : 4+zo.len])
 
-	if len(b) > (4 + int(zo.len)) {
-		return b[4+zo.len:], nil
+	if len(b) > (3 + int(zo.len)) {
+		return b[3+zo.len:], nil
 	}
 
 	return nil, nil
