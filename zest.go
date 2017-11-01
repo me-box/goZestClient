@@ -14,15 +14,10 @@ import (
 
 const me = "ZMQ client"
 
-func log(msg string) {
-	t := time.Now()
-	fmt.Println("[", me, " ", t, "] ", msg)
-}
-
 func assertNotError(err error) {
 
 	if err != nil {
-		log("Error " + err.Error())
+		fmt.Println("Error " + err.Error())
 		panic("") //TODO make this stop gracefully
 	}
 
@@ -63,13 +58,16 @@ type ZestClient struct {
 	serverKey      string
 	endpoint       string
 	dealerEndpoint string
+	enableLogging  bool
 }
 
 //New returns a ZestClient connected to endpoint using serverKey as an identity
-func New(endpoint string, dealerEndpoint string, serverKey string) ZestClient {
+func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging bool) ZestClient {
 
 	z := ZestClient{}
-	log("Connecting")
+	z.enableLogging = enableLogging
+
+	z.log("Connecting")
 	var err error
 	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
 	assertNotError(err)
@@ -89,9 +87,9 @@ func New(endpoint string, dealerEndpoint string, serverKey string) ZestClient {
 	return z
 }
 
-func (z ZestClient) Post(endpoint string, token string, path string, payload string) error {
+func (z ZestClient) Post(token string, path string, payload string) error {
 
-	log("Posting")
+	z.log("Posting")
 
 	//post request
 	zr := zestHeader{}
@@ -110,13 +108,13 @@ func (z ZestClient) Post(endpoint string, token string, path string, payload str
 
 	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	assertNotError(reqErr)
-	log("=> Created")
+	z.log("=> Created")
 	return nil
 }
 
-func (z ZestClient) Get(endpoint string, token string, path string) (string, error) {
+func (z ZestClient) Get(token string, path string) (string, error) {
 
-	log("Getting")
+	z.log("Getting")
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -137,7 +135,7 @@ func (z ZestClient) Get(endpoint string, token string, path string) (string, err
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(endpoint string, token string, path string) (<-chan zestHeader, error) {
+func (z ZestClient) Observe(token string, path string) (<-chan zestHeader, error) {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -169,8 +167,8 @@ func (z ZestClient) sendRequest(msg []byte) error {
 		return errors.New("Connection is closed can't send data")
 	}
 
-	log("Sending request:")
-	log("\n" + hex.Dump(msg))
+	z.log("Sending request:")
+	z.log("\n" + hex.Dump(msg))
 
 	_, err := z.ZMQsoc.SendBytes(msg, 0)
 	assertNotError(err)
@@ -184,8 +182,8 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 		return zestHeader{}, errors.New("Connection is closed can't send data")
 	}
 
-	log("Sending request:")
-	log("\n" + hex.Dump(msg))
+	z.log("Sending request:")
+	z.log("\n" + hex.Dump(msg))
 
 	z.ZMQsoc.SendBytes(msg, 0)
 
@@ -214,7 +212,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader,
 			serverKey = option.Value
 		}
 	}
-	log("Using serverKey " + serverKey)
+	z.log("Using serverKey " + serverKey)
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	assertNotError(err)
 	err = dealer.ClientAuthCurve(serverKey, clientPublic, clientSecret)
@@ -226,7 +224,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader,
 	dataChan := make(chan zestHeader)
 	go func(output chan<- zestHeader) {
 		for {
-			log("Waiting for response on id " + header.Payload + " .....")
+			z.log("Waiting for response on id " + header.Payload + " .....")
 			resp, err := dealer.RecvBytes(0)
 			assertNotError(err)
 			parsedResp, errResp := z.handleResponse(resp)
@@ -241,8 +239,8 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader,
 
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 
-	log("Got response:")
-	log("\n" + hex.Dump(msg))
+	z.log("Got response:")
+	z.log("\n" + hex.Dump(msg))
 
 	zr := zestHeader{}
 
@@ -264,4 +262,11 @@ func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 		return zr, errors.New("unsupported content format")
 	}
 	return zr, errors.New("invalid code:" + strconv.Itoa(int(zr.Code)))
+}
+
+func (z ZestClient) log(msg string) {
+	if z.enableLogging {
+		t := time.Now()
+		fmt.Println("[", me, " ", t, "] ", msg)
+	}
 }

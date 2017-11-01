@@ -18,23 +18,24 @@ func main() {
 	ReqEndpoint := flag.String("request-endpoint", "tcp://127.0.0.1:5555", "set the request/reply endpoint")
 	DealerEndpoint := flag.String("router-endpoint", "tcp://127.0.0.1:5556", "set the router/dealer endpoint")
 	Mode := flag.String("method", "OBSERVE", "set the mode of operation")
+	Logging := flag.Bool("enable-logging", false, "output debug information")
 	flag.Parse()
 
-	zestC := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey)
+	zestC := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey, *Logging)
 	switch strings.ToUpper(*Mode) {
 	case "POST":
-		err := zestC.Post(*ReqEndpoint, *Token, *Path, *Payload)
+		err := zestC.Post(*Token, *Path, *Payload)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
 	case "GET":
-		value, err := zestC.Get(*ReqEndpoint, *Token, *Path)
+		value, err := zestC.Get(*Token, *Path)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
 		fmt.Println("Value returned: ", value)
 	case "OBSERVE":
-		dataChan, obsErr := zestC.Observe(*ReqEndpoint, *Token, *Path)
+		dataChan, obsErr := zestC.Observe(*Token, *Path)
 		if obsErr != nil {
 			fmt.Println(obsErr.Error())
 		}
