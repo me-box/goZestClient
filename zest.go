@@ -135,7 +135,7 @@ func (z ZestClient) Get(token string, path string) (string, error) {
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(token string, path string) (<-chan zestHeader, error) {
+func (z ZestClient) Observe(token string, path string) (<-chan string, error) {
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -197,7 +197,7 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	return parsedResp, nil
 }
 
-func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader, error) {
+func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, error) {
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
@@ -221,8 +221,8 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader,
 	connError := dealer.Connect(z.dealerEndpoint)
 	assertNotError(connError)
 
-	dataChan := make(chan zestHeader)
-	go func(output chan<- zestHeader) {
+	dataChan := make(chan string)
+	go func(output chan<- string) {
 		for {
 			z.log("Waiting for response on id " + header.Payload + " .....")
 			resp, err := dealer.RecvBytes(0)
@@ -230,7 +230,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan zestHeader,
 			parsedResp, errResp := z.handleResponse(resp)
 			assertNotError(errResp)
 
-			output <- parsedResp
+			output <- parsedResp.Payload
 		}
 	}(dataChan)
 
