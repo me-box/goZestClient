@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	zest "github.com/toshbrown/goZestClient"
@@ -21,7 +22,11 @@ func main() {
 	Logging := flag.Bool("enable-logging", false, "output debug information")
 	flag.Parse()
 
-	zestC := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey, *Logging)
+	zestC, clientErr := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey, *Logging)
+	if clientErr != nil {
+		fmt.Println("Error creating client: ", clientErr.Error())
+		os.Exit(2)
+	}
 	switch strings.ToUpper(*Mode) {
 	case "POST":
 		err := zestC.Post(*Token, *Path, *Payload)
@@ -42,7 +47,7 @@ func main() {
 
 		fmt.Println("Blocking waiting for data on chan ", dataChan)
 		resp := <-dataChan
-		fmt.Println("Value returned from observer: ", string(resp.Payload))
+		fmt.Println("Value returned from observer: ", string(resp))
 
 	default:
 		fmt.Println("Unknown method try GET,POST or OBSERVE")

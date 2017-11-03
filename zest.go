@@ -62,7 +62,7 @@ type ZestClient struct {
 }
 
 //New returns a ZestClient connected to endpoint using serverKey as an identity
-func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging bool) ZestClient {
+func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging bool) (ZestClient, error) {
 
 	z := ZestClient{}
 	z.enableLogging = enableLogging
@@ -70,21 +70,28 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	z.log("Connecting")
 	var err error
 	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
-	assertNotError(err)
+	if err != nil {
+		return z, err
+	}
 
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
-	assertNotError(err)
+	if err != nil {
+		return z, err
+	}
 
 	err = z.ZMQsoc.ClientAuthCurve(serverKey, clientPublic, clientSecret)
-	assertNotError(err)
-
+	if err != nil {
+		return z, err
+	}
 	z.serverKey = serverKey
 	z.dealerEndpoint = dealerEndpoint
 	z.endpoint = endpoint
 	err = z.ZMQsoc.Connect(endpoint)
-	assertNotError(err)
+	if err != nil {
+		return z, err
+	}
 
-	return z
+	return z, nil
 }
 
 func (z ZestClient) Post(token string, path string, payload string) error {
@@ -104,10 +111,14 @@ func (z ZestClient) Post(token string, path string, payload string) error {
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
-	assertNotError(marshalErr)
+	if marshalErr != nil {
+		return marshalErr
+	}
 
 	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
-	assertNotError(reqErr)
+	if reqErr != nil {
+		return reqErr
+	}
 	z.log("=> Created")
 	return nil
 }
@@ -127,10 +138,14 @@ func (z ZestClient) Get(token string, path string) (string, error) {
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
 
 	bytes, marshalErr := zr.Marshal()
-	assertNotError(marshalErr)
+	if marshalErr != nil {
+		return "", marshalErr
+	}
 
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
-	assertNotError(reqErr)
+	if reqErr != nil {
+		return "", reqErr
+	}
 
 	return resp.Payload, nil
 }
@@ -149,13 +164,19 @@ func (z ZestClient) Observe(token string, path string) (<-chan string, error) {
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
 	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(60))})
 	bytes, marshalErr := zr.Marshal()
-	assertNotError(marshalErr)
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
 
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
-	assertNotError(reqErr)
+	if reqErr != nil {
+		return nil, reqErr
+	}
 
 	dataChan, err := z.readFromRouterSocket(resp)
-	assertNotError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	return dataChan, nil
 
@@ -171,7 +192,9 @@ func (z ZestClient) sendRequest(msg []byte) error {
 	z.log("\n" + hex.Dump(msg))
 
 	_, err := z.ZMQsoc.SendBytes(msg, 0)
-	assertNotError(err)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -189,10 +212,14 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 
 	//TODO ADD TIME OUT
 	resp, err := z.ZMQsoc.RecvBytes(0)
-	assertNotError(err)
+	if err != nil {
+		return zestHeader{}, err
+	}
 
 	parsedResp, errResp := z.handleResponse(resp)
-	assertNotError(errResp)
+	if errResp != nil {
+		return zestHeader{}, errResp
+	}
 
 	return parsedResp, nil
 }
@@ -201,10 +228,14 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, err
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
-	assertNotError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	err = dealer.SetIdentity(header.Payload)
-	assertNotError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	serverKey := ""
 	for _, option := range header.Options {
@@ -214,22 +245,34 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, err
 	}
 	z.log("Using serverKey " + serverKey)
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
-	assertNotError(err)
+	if err != nil {
+		return nil, err
+	}
+
 	err = dealer.ClientAuthCurve(serverKey, clientPublic, clientSecret)
-	assertNotError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	connError := dealer.Connect(z.dealerEndpoint)
-	assertNotError(connError)
+	if err != nil {
+		return nil, connError
+	}
 
 	dataChan := make(chan string)
 	go func(output chan<- string) {
 		for {
 			z.log("Waiting for response on id " + header.Payload + " .....")
 			resp, err := dealer.RecvBytes(0)
-			assertNotError(err)
+			if err != nil {
+				z.log("Error reading from dealer")
+				continue
+			}
 			parsedResp, errResp := z.handleResponse(resp)
-			assertNotError(errResp)
-
+			if errResp != nil {
+				z.log("Error decoding response from dealer")
+				continue
+			}
 			output <- parsedResp.Payload
 		}
 	}(dataChan)
@@ -245,7 +288,9 @@ func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 	zr := zestHeader{}
 
 	err := zr.Parse(msg)
-	assertNotError(err)
+	if err != nil {
+		return zr, err
+	}
 
 	switch zr.Code {
 	case 65:
