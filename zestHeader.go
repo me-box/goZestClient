@@ -10,7 +10,7 @@ type zestHeader struct {
 	tkl     uint16 //16
 	Token   string
 	Options []zestOptions
-	Payload string
+	Payload []byte
 }
 
 func (z *zestHeader) Marshal() ([]byte, error) {
@@ -75,7 +75,7 @@ func (z *zestHeader) Parse(msg []byte) error {
 		}
 
 		if len(remainingBytes) > 0 {
-			z.Payload = string(remainingBytes)
+			z.Payload = remainingBytes
 		}
 	}
 

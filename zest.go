@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	zmq "github.com/pebbe/zmq4"
@@ -94,9 +95,14 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	return z, nil
 }
 
-func (z ZestClient) Post(token string, path string, payload string) error {
+func (z ZestClient) Post(token string, path string, payload []byte, contentFormat string) error {
 
 	z.log("Posting")
+
+	err := checkContentFormatFormat(contentFormat)
+	if err != nil {
+		return err
+	}
 
 	//post request
 	zr := zestHeader{}
@@ -108,7 +114,7 @@ func (z ZestClient) Post(token string, path string, payload string) error {
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
@@ -123,9 +129,14 @@ func (z ZestClient) Post(token string, path string, payload string) error {
 	return nil
 }
 
-func (z ZestClient) Get(token string, path string) (string, error) {
+func (z ZestClient) Get(token string, path string, contentFormat string) ([]byte, error) {
 
 	z.log("Getting")
+
+	err := checkContentFormatFormat(contentFormat)
+	if err != nil {
+		return nil, err
+	}
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -135,22 +146,27 @@ func (z ZestClient) Get(token string, path string) (string, error) {
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
-		return "", marshalErr
+		return bytes, marshalErr
 	}
 
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	if reqErr != nil {
-		return "", reqErr
+		return bytes, reqErr
 	}
 
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(token string, path string) (<-chan string, error) {
+func (z ZestClient) Observe(token string, path string, contentFormat string) (<-chan []byte, error) {
+
+	err := checkContentFormatFormat(contentFormat)
+	if err != nil {
+		return nil, err
+	}
 
 	zr := zestHeader{}
 	zr.Code = 1
@@ -161,7 +177,7 @@ func (z ZestClient) Observe(token string, path string) (<-chan string, error) {
 	hostname, _ := os.Hostname()
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 6, Value: ""})
-	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(50))}) // 50 representing json
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(60))})
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
@@ -224,7 +240,7 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	return parsedResp, nil
 }
 
-func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, error) {
+func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan []byte, error) {
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
@@ -232,7 +248,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, err
 		return nil, err
 	}
 
-	err = dealer.SetIdentity(header.Payload)
+	err = dealer.SetIdentity(string(header.Payload))
 	if err != nil {
 		return nil, err
 	}
@@ -259,10 +275,10 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan string, err
 		return nil, connError
 	}
 
-	dataChan := make(chan string)
-	go func(output chan<- string) {
+	dataChan := make(chan []byte)
+	go func(output chan<- []byte) {
 		for {
-			z.log("Waiting for response on id " + header.Payload + " .....")
+			z.log("Waiting for response on id " + string(header.Payload) + " .....")
 			resp, err := dealer.RecvBytes(0)
 			if err != nil {
 				z.log("Error reading from dealer")
@@ -314,4 +330,33 @@ func (z ZestClient) log(msg string) {
 		t := time.Now()
 		fmt.Println("[", me, " ", t, "] ", msg)
 	}
+}
+
+func checkContentFormatFormat(format string) error {
+
+	switch strings.ToUpper(format) {
+	case "TEXT":
+		return nil
+	case "BINARY":
+		return nil
+	case "JSON":
+		return nil
+	default:
+		return errors.New("Unsupported Content format: " + format)
+	}
+
+}
+
+func contentFormatToInt(format string) uint16 {
+
+	switch strings.ToUpper(format) {
+	case "TEXT":
+		return 0
+	case "BINARY":
+		return 50
+	case "JSON":
+		return 42
+	}
+
+	return 0
 }
