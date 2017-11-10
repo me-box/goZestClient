@@ -355,7 +355,7 @@ func contentFormatToInt(format string) uint16 {
 	case "BINARY":
 		return 50
 	case "JSON":
-		return 42
+		return 50
 	}
 
 	return 0
