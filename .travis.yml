@@ -9,6 +9,6 @@ before_install:
   - sudo docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest /app/zest/server.exe --secret-key-file example-server-key
   - go get github.com/pebbe/zmq4
 script:
-  - npm test
+  - ./test/test.sh
 services:
   - docker
