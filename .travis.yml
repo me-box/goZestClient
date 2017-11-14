@@ -9,7 +9,7 @@ before_install:
   - sudo docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest /app/zest/server.exe --secret-key-file example-server-key
   - go get github.com/pebbe/zmq4
   - mkdir -p /home/travis/gopath/src/github.com/toshbrown/goZestClient
-  - git clone $TRAVIS_BRANCH /home/travis/gopath/src/github.com/toshbrown/goZestClient
+  - git clone --branch $TRAVIS_BRANCH https://github.com/$TRAVIS_REPO_SLUG /home/travis/gopath/src/github.com/toshbrown/goZestClient
 script:
   - ./test/test.sh
 services:
