@@ -48,7 +48,20 @@ func main() {
 		fmt.Println("Blocking waiting for data on chan ", dataChan)
 		resp := <-dataChan
 		fmt.Println("Value returned from observer: ", string(resp))
-
+	case "TEST":
+		postErr := zestC.Post(*Token, *Path+"/at/1510747972884", []byte(*Payload), *Format)
+		if postErr != nil {
+			fmt.Println(postErr.Error())
+		}
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":31}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":32}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":33}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":34}"), *Format)
+		value, err := zestC.Get(*Token, *Path+"/latest", *Format)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Println(string(value))
 	default:
 		fmt.Println("Unknown method try GET,POST or OBSERVE")
 	}
