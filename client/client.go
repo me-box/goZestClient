@@ -49,7 +49,7 @@ func main() {
 		resp := <-dataChan
 		fmt.Println("Value returned from observer: ", string(resp))
 	case "TEST":
-		postErr := zestC.Post(*Token, *Path+"/at/1510747972884", []byte(*Payload), *Format)
+		postErr := zestC.Post(*Token, *Path+"/at/1510949972884", []byte("{\"name\":\"dave\", \"age\":30}"), *Format)
 		if postErr != nil {
 			fmt.Println(postErr.Error())
 		}
