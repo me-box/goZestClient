@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	zmq "github.com/pebbe/zmq4"
@@ -56,10 +57,12 @@ func pack_32(i uint32) []byte {
 
 type ZestClient struct {
 	ZMQsoc         *zmq.Socket
+	ZMQsocMutex    *sync.Mutex
 	serverKey      string
 	endpoint       string
 	dealerEndpoint string
 	enableLogging  bool
+	hostname       string
 }
 
 //New returns a ZestClient connected to endpoint using serverKey as an identity
@@ -68,12 +71,17 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	z := ZestClient{}
 	z.enableLogging = enableLogging
 
+	//cache the host name to save 10ms
+	z.hostname, _ = os.Hostname()
+
 	z.log("Connecting")
 	var err error
 	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
 	if err != nil {
 		return z, err
 	}
+
+	z.ZMQsocMutex = &sync.Mutex{}
 
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	if err != nil {
@@ -112,8 +120,7 @@ func (z ZestClient) Post(token string, path string, payload []byte, contentForma
 
 	//post options
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
-	hostname, _ := os.Hostname()
-	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: z.hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 
 	bytes, marshalErr := zr.Marshal()
@@ -144,8 +151,7 @@ func (z ZestClient) Get(token string, path string, contentFormat string) ([]byte
 
 	//options
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
-	hostname, _ := os.Hostname()
-	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: z.hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 
 	bytes, marshalErr := zr.Marshal()
@@ -174,8 +180,7 @@ func (z ZestClient) Observe(token string, path string, contentFormat string) (<-
 
 	//options
 	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
-	hostname, _ := os.Hostname()
-	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: z.hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 6, Value: ""})
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
 	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(60))})
@@ -205,9 +210,11 @@ func (z ZestClient) sendRequest(msg []byte) error {
 	}
 
 	z.log("Sending request:")
-	z.log("\n" + hex.Dump(msg))
+	z.Hexlog(msg)
 
+	z.ZMQsocMutex.Lock()
 	_, err := z.ZMQsoc.SendBytes(msg, 0)
+	z.ZMQsocMutex.Unlock()
 	if err != nil {
 		return err
 	}
@@ -222,14 +229,20 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	}
 
 	z.log("Sending request:")
-	z.log("\n" + hex.Dump(msg))
+	z.Hexlog(msg)
 
-	z.ZMQsoc.SendBytes(msg, 0)
+	z.ZMQsocMutex.Lock()
+	_, err := z.ZMQsoc.SendBytes(msg, 0)
+	if err != nil {
+		z.ZMQsocMutex.Unlock()
+		return zestHeader{}, err
+	}
 
 	//TODO ADD TIME OUT
-	resp, err := z.ZMQsoc.RecvBytes(0)
-	if err != nil {
-		return zestHeader{}, err
+	resp, RecvErr := z.ZMQsoc.RecvBytes(0)
+	z.ZMQsocMutex.Unlock()
+	if RecvErr != nil {
+		return zestHeader{}, RecvErr
 	}
 
 	parsedResp, errResp := z.handleResponse(resp)
@@ -299,7 +312,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan []byte, err
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 
 	z.log("Got response:")
-	z.log("\n" + hex.Dump(msg))
+	z.Hexlog(msg)
 
 	zr := zestHeader{}
 
@@ -329,6 +342,13 @@ func (z ZestClient) log(msg string) {
 	if z.enableLogging {
 		t := time.Now()
 		fmt.Println("[", me, " ", t, "] ", msg)
+	}
+}
+
+func (z ZestClient) Hexlog(msg []byte) {
+	if z.enableLogging {
+		t := time.Now()
+		fmt.Println("[", me, " ", t, "] \n", hex.Dump(msg))
 	}
 }
 
