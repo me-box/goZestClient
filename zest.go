@@ -167,7 +167,7 @@ func (z ZestClient) Get(token string, path string, contentFormat string) ([]byte
 	return resp.Payload, nil
 }
 
-func (z ZestClient) Observe(token string, path string, contentFormat string) (<-chan []byte, error) {
+func (z ZestClient) Observe(token string, path string, contentFormat string, timeout uint32) (<-chan []byte, error) {
 
 	err := checkContentFormatFormat(contentFormat)
 	if err != nil {
@@ -183,7 +183,7 @@ func (z ZestClient) Observe(token string, path string, contentFormat string) (<-
 	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: z.hostname})
 	zr.Options = append(zr.Options, zestOptions{Number: 6, Value: ""})
 	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
-	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(60))})
+	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(timeout))})
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
 		return nil, marshalErr
