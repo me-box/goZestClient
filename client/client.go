@@ -40,7 +40,7 @@ func main() {
 		}
 		fmt.Println(string(value))
 	case "OBSERVE":
-		dataChan, obsErr := zestC.Observe(*Token, *Path, *Format)
+		dataChan, obsErr := zestC.Observe(*Token, *Path, *Format, 0)
 		if obsErr != nil {
 			fmt.Println(obsErr.Error())
 		}
@@ -49,14 +49,18 @@ func main() {
 		resp := <-dataChan
 		fmt.Println("Value returned from observer: ", string(resp))
 	case "TEST":
-		postErr := zestC.Post(*Token, *Path+"/at/1510949972884", []byte("{\"name\":\"dave\", \"age\":30}"), *Format)
-		if postErr != nil {
-			fmt.Println(postErr.Error())
-		}
-		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":31}"), *Format)
-		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":32}"), *Format)
-		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":33}"), *Format)
-		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":34}"), *Format)
+
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":91}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":92}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":93}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":94}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":95}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":96}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":97}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":98}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":99}"), *Format)
+		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":100}"), *Format)
+
 		value, err := zestC.Get(*Token, *Path+"/latest", *Format)
 		if err != nil {
 			fmt.Println(err.Error())
