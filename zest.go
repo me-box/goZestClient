@@ -59,8 +59,8 @@ type ZestClient struct {
 	ZMQsoc         *zmq.Socket
 	ZMQsocMutex    *sync.Mutex
 	serverKey      string
-	endpoint       string
-	dealerEndpoint string
+	Endpoint       string
+	DealerEndpoint string
 	enableLogging  bool
 	hostname       string
 }
@@ -93,8 +93,8 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 		return z, err
 	}
 	z.serverKey = serverKey
-	z.dealerEndpoint = dealerEndpoint
-	z.endpoint = endpoint
+	z.DealerEndpoint = dealerEndpoint
+	z.Endpoint = endpoint
 	err = z.ZMQsoc.Connect(endpoint)
 	if err != nil {
 		return z, err
@@ -283,7 +283,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader) (<-chan []byte, err
 		return nil, err
 	}
 
-	connError := dealer.Connect(z.dealerEndpoint)
+	connError := dealer.Connect(z.DealerEndpoint)
 	if err != nil {
 		return nil, connError
 	}
