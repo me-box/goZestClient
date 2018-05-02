@@ -7,7 +7,7 @@ A Golang Lib for [REST over ZeroMQ](https://github.com/jptmoore/zest)
 ## Starting server to test against
 
 ```bash
-$ docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest:v0.0.1 /app/zest/server.exe --secret-key-file example-server-key --enable-logging
+$ docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest:v0.0.6 /app/zest/server.exe --secret-key-file example-server-key --enable-logging
 $ docker logs zest -f
 ```
 
