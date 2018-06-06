@@ -6,7 +6,7 @@ before_install:
   - sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
   - sudo apt-get update
   - sudo apt-get -y install docker-ce
-  - sudo docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest:v0.0.6 /app/zest/server.exe --secret-key-file example-server-key
+  - sudo docker run -p 5555:5555 -p 5556:5556 -d --name zest --rm jptmoore/zest:v0.0.7 /app/zest/server.exe --secret-key-file example-server-key
 script:
   - ./test/test-in-docker.sh
 services:
