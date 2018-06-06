@@ -55,3 +55,20 @@ test_contains "$EXPECTED" "$RES" "Test TS GET LAST 20 JSON "
 EXPECTED='{"name":"dave","age":100}'
 RES=$($CMD --method test --path /ts/blob/testing)
 test_contains "$EXPECTED" "$RES" "Test TS GET LATEST after test JSON "
+
+
+EXPECTED='created'
+RES=$($CMD --method post --format json --path /kv/testing/tosh --payload "{\"name\":\"tosh\",\"age\":30}")
+test_contains "$EXPECTED" "$RES" "Test KV write"
+
+EXPECTED='{"name":"tosh","age":30}'
+RES=$($CMD --method get --format json --path /kv/testing/tosh)
+test_contains "$EXPECTED" "$RES" "Test KV read"
+
+EXPECTED="deleted"
+RES=$($CMD --method delete --format json --path /kv/testing/tosh)
+test_assert "$EXPECTED" "$RES" "Test KV delete"
+
+EXPECTED=''
+RES=$($CMD --method get --format json --path /kv/testing/tosh)
+test_contains "$EXPECTED" "$RES" "Test Item is gone"

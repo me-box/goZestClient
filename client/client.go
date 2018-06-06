@@ -39,6 +39,12 @@ func main() {
 			fmt.Println(err.Error())
 		}
 		fmt.Println(string(value))
+	case "DELETE":
+		err := zestC.Delete(*Token, *Path, *Format)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Println("deleted")
 	case "OBSERVE":
 		dataChan, obsErr := zestC.Observe(*Token, *Path, *Format, 0)
 		if obsErr != nil {

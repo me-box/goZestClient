@@ -136,6 +136,38 @@ func (z ZestClient) Post(token string, path string, payload []byte, contentForma
 	return nil
 }
 
+func (z ZestClient) Delete(token string, path string, contentFormat string) error {
+
+	z.log("Deleting")
+
+	err := checkContentFormatFormat(contentFormat)
+	if err != nil {
+		return err
+	}
+
+	//Delete request
+	zr := zestHeader{}
+	zr.Code = 4
+	zr.Token = token
+
+	//Delete options
+	zr.Options = append(zr.Options, zestOptions{Number: 11, Value: path})
+	zr.Options = append(zr.Options, zestOptions{Number: 3, Value: z.hostname})
+	zr.Options = append(zr.Options, zestOptions{Number: 12, Value: string(pack_16(contentFormatToInt(contentFormat)))})
+
+	bytes, marshalErr := zr.Marshal()
+	if marshalErr != nil {
+		return marshalErr
+	}
+
+	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
+	if reqErr != nil {
+		return reqErr
+	}
+	z.log("=> Deleted")
+	return nil
+}
+
 func (z ZestClient) Get(token string, path string, contentFormat string) ([]byte, error) {
 
 	z.log("Getting")
@@ -325,6 +357,9 @@ func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 	case 65:
 		//created
 		return zr, nil
+	case 66:
+		//Deleted
+		return zr, nil
 	case 69:
 		//content
 		return zr, nil
@@ -334,6 +369,14 @@ func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
 		return zr, errors.New("unauthorized")
 	case 143:
 		return zr, errors.New("unsupported content format")
+	case 163:
+		return zr, errors.New("service unavailable")
+	case 134:
+		return zr, errors.New("not acceptable")
+	case 141:
+		return zr, errors.New("request entity too large")
+	case 160:
+		return zr, errors.New("internal server error")
 	}
 	return zr, errors.New("invalid code:" + strconv.Itoa(int(zr.Code)))
 }
