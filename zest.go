@@ -103,13 +103,13 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	return z, nil
 }
 
-func (z ZestClient) Post(token string, path string, payload []byte, contentFormat string) error {
+func (z ZestClient) Post(token string, path string, payload []byte, contentFormat string) ([]byte, error) {
 
 	z.log("Posting")
 
 	err := checkContentFormatFormat(contentFormat)
 	if err != nil {
-		return err
+		return []byte{}, err
 	}
 
 	//post request
@@ -125,15 +125,15 @@ func (z ZestClient) Post(token string, path string, payload []byte, contentForma
 
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
-		return marshalErr
+		return []byte{}, marshalErr
 	}
 
-	_, reqErr := z.sendRequestAndAwaitResponse(bytes)
+	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	if reqErr != nil {
-		return reqErr
+		return []byte{}, reqErr
 	}
 	z.log("=> Created")
-	return nil
+	return resp.Payload, nil
 }
 
 func (z ZestClient) Delete(token string, path string, contentFormat string) error {

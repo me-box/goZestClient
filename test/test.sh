@@ -61,6 +61,10 @@ EXPECTED='created'
 RES=$($CMD --method post --format json --path /kv/testing/tosh --payload "{\"name\":\"tosh\",\"age\":30}")
 test_contains "$EXPECTED" "$RES" "Test KV write"
 
+EXPECTED='created'
+RES=$($CMD --method post --format json --path /kv/testing/dave --payload "{\"name\":\"dave\",\"age\":30}")
+test_contains "$EXPECTED" "$RES" "Test KV write"
+
 EXPECTED='{"name":"tosh","age":30}'
 RES=$($CMD --method get --format json --path /kv/testing/tosh)
 test_contains "$EXPECTED" "$RES" "Test KV read"
@@ -72,3 +76,11 @@ test_assert "$EXPECTED" "$RES" "Test KV delete"
 EXPECTED=''
 RES=$($CMD --method get --format json --path /kv/testing/tosh)
 test_contains "$EXPECTED" "$RES" "Test Item is gone"
+
+EXPECTED="deleted"
+RES=$($CMD --method delete --format json --path /kv/testing)
+test_assert "$EXPECTED" "$RES" "Test KV delete all"
+
+EXPECTED=''
+RES=$($CMD --method get --format json --path /kv/testing/dave)
+test_contains "$EXPECTED" "$RES" "Test dave Item is gone"

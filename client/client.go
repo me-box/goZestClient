@@ -28,7 +28,7 @@ func main() {
 	}
 	switch strings.ToUpper(*Mode) {
 	case "POST":
-		err := zestC.Post(*Token, *Path, []byte(*Payload), *Format)
+		_, err := zestC.Post(*Token, *Path, []byte(*Payload), *Format)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
