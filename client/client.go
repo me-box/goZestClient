@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	zest "github.com/toshbrown/goZestClient"
+	zest "github.com/me-box/goZestClient"
 )
 
 func main() {
