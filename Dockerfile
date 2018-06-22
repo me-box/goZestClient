@@ -3,5 +3,5 @@ WORKDIR /
 ENV GOPATH="/"
 RUN apk update && apk add pkgconfig build-base bash autoconf automake libtool gettext openrc git libzmq zeromq-dev
 COPY . .
-COPY . /src/github.com/toshbrown/goZestClient/
+COPY . /src/github.com/me-box/goZestClient/
 RUN go get github.com/pebbe/zmq4
