@@ -5,7 +5,7 @@ ME='goZestClient'
 source test/utils.sh
 
 #CMD="go run ./client/client.go --enable-logging "
-CMD="go run client.go "
+CMD="go run ./client/client.go "
 
 EXPECTED="created"
 RES=$($CMD --mode post --format json --path /kv/test/key --payload "{\"name\":\"tosh\",\"age\":38}")

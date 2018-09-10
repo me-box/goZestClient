@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	zest "./zest"
+	zest ".."
 )
 
 func main() {
