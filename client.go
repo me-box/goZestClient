@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	zest "github.com/me-box/goZestClient"
+	zest "./zest"
 )
 
 func main() {
@@ -16,8 +16,9 @@ func main() {
 	Payload := flag.String("payload", "{\"name\":\"dave\", \"age\":30}", "Set the uri path for POST and GET")
 	ReqEndpoint := flag.String("request-endpoint", "tcp://127.0.0.1:5555", "set the request/reply endpoint")
 	DealerEndpoint := flag.String("router-endpoint", "tcp://127.0.0.1:5556", "set the router/dealer endpoint")
-	Mode := flag.String("method", "OBSERVE", "set the mode of operation")
+	Mode := flag.String("mode", "OBSERVE", "set the mode of operation")
 	Format := flag.String("format", "JSON", "text, json, binary to set the message content type")
+	ObserveMode := flag.String("observe-mode", "data", `"data", "audit", "notification"`)
 	Logging := flag.Bool("enable-logging", false, "output debug information")
 	flag.Parse()
 
@@ -46,14 +47,36 @@ func main() {
 		}
 		fmt.Println("deleted")
 	case "OBSERVE":
-		dataChan, obsErr := zestC.Observe(*Token, *Path, *Format, 0)
-		if obsErr != nil {
-			fmt.Println(obsErr.Error())
+
+		obsTypes := map[string]zest.ObserveMode{
+			"data":         zest.ObserveModeData,
+			"audit":        zest.ObserveModeAudit,
+			"notification": zest.ObserveModeNotification,
 		}
 
-		fmt.Println("Blocking waiting for data on chan ", dataChan)
+		if val, ok := obsTypes[*ObserveMode]; ok {
+			dataChan, obsErr := zestC.Observe(*Token, *Path, *Format, val, 0)
+			if obsErr != nil {
+				fmt.Println(" Error: ", obsErr.Error())
+				break
+			}
+
+			fmt.Println("Blocking waiting for data on chan ", dataChan)
+			resp := <-dataChan
+			fmt.Println("Value returned from observer: ", string(resp))
+		} else {
+			fmt.Println("Unsouported observe mode ")
+		}
+	case "NOTIFY":
+		dataChan, obsErr := zestC.Notify(*Token, *Path, *Format, 0)
+		if obsErr != nil {
+			fmt.Println(" Error: ", obsErr.Error())
+			break
+		}
+		fmt.Println("Blocking waiting for data on Notify chan ", dataChan, " Error: ", obsErr)
 		resp := <-dataChan
-		fmt.Println("Value returned from observer: ", string(resp))
+		fmt.Println("Value returned from notifyer: ", string(resp))
+
 	case "TEST":
 
 		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":91}"), *Format)
@@ -73,7 +96,7 @@ func main() {
 		}
 		fmt.Println(string(value))
 	default:
-		fmt.Println("Unknown method try GET,POST or OBSERVE")
+		fmt.Println("Unknown method try GET,POST,OBSERVE or NOTIFY")
 	}
 
 }
