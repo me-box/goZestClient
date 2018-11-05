@@ -1,6 +1,6 @@
 # goZestClient
 
-[![Build Status](https://travis-ci.org/Toshbrown/goZestClient.svg?branch=master)](https://travis-ci.org/Toshbrown/goZestClient)
+[![Build Status](https://travis-ci.org/Toshbrown/goZestClient.svg?branch=master)](https://travis-ci.org/me-box/goZestClient)
 
 A Golang Lib for [REST over ZeroMQ](https://github.com/jptmoore/zest)
 
