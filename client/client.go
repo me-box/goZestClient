@@ -62,7 +62,7 @@ func main() {
 		}
 
 		if val, ok := obsTypes[*ObserveMode]; ok {
-			dataChan, obsErr := zestC.Observe(*Token, *Path, *Format, val, 0)
+			dataChan, doneChan, obsErr := zestC.Observe(*Token, *Path, *Format, val, 0)
 			if obsErr != nil {
 				fmt.Println(" Error: ", obsErr.Error())
 				break
@@ -71,12 +71,13 @@ func main() {
 			fmt.Println("Blocking waiting for data on chan ", dataChan)
 			resp := <-dataChan
 			fmt.Println("Value returned from observer: ", string(resp))
+			doneChan <- 1
 		} else {
 			fmt.Println("Unsouported observe mode ")
 		}
 		zestC.Close()
 	case "NOTIFY":
-		dataChan, obsErr := zestC.Notify(*Token, *Path, *Format, 0)
+		dataChan, doneChan, obsErr := zestC.Notify(*Token, *Path, *Format, 0)
 		if obsErr != nil {
 			fmt.Println(" Error: ", obsErr.Error())
 			break
@@ -84,6 +85,7 @@ func main() {
 		fmt.Println("Blocking waiting for data on Notify chan ", dataChan, " Error: ", obsErr)
 		resp := <-dataChan
 		fmt.Println("Value returned from notifyer: ", string(resp))
+		doneChan <- 1
 		zestC.Close()
 	case "TEST":
 

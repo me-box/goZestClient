@@ -211,11 +211,11 @@ const ObserveModeData ObserveMode = "data"
 const ObserveModeAudit ObserveMode = "audit"
 const ObserveModeNotification ObserveMode = "notification"
 
-func (z ZestClient) Observe(token string, path string, contentFormat string, observeMode ObserveMode, timeout uint32) (<-chan []byte, error) {
+func (z ZestClient) Observe(token string, path string, contentFormat string, observeMode ObserveMode, timeout uint32) (<-chan []byte, chan int, error) {
 
 	err := checkContentFormatFormat(contentFormat)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	zr := zestHeader{}
@@ -230,28 +230,28 @@ func (z ZestClient) Observe(token string, path string, contentFormat string, obs
 	zr.Options = append(zr.Options, zestOptions{Number: 14, Value: string(pack_32(timeout))})
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
-		return nil, marshalErr
+		return nil, nil, marshalErr
 	}
 
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	if reqErr != nil {
-		return nil, reqErr
+		return nil, nil, reqErr
 	}
 
-	dataChan, err := z.readFromRouterSocket(resp, "")
+	dataChan, doneChan, err := z.readFromRouterSocket(resp, "")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return dataChan, nil
+	return dataChan, doneChan, nil
 
 }
 
-func (z ZestClient) Notify(token string, path string, contentFormat string, timeout uint32) (<-chan []byte, error) {
+func (z ZestClient) Notify(token string, path string, contentFormat string, timeout uint32) (<-chan []byte, chan int, error) {
 
 	err := checkContentFormatFormat(contentFormat)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	zr := zestHeader{}
@@ -266,21 +266,21 @@ func (z ZestClient) Notify(token string, path string, contentFormat string, time
 
 	bytes, marshalErr := zr.Marshal()
 	if marshalErr != nil {
-		return nil, errors.New("Zest Header Marshal " + marshalErr.Error())
+		return nil, nil, errors.New("Zest Header Marshal " + marshalErr.Error())
 	}
 
 	resp, reqErr := z.sendRequestAndAwaitResponse(bytes)
 	if reqErr != nil {
-		return nil, errors.New("sendRequestAndAwaitResponse " + reqErr.Error())
+		return nil, nil, errors.New("sendRequestAndAwaitResponse " + reqErr.Error())
 	}
 
-	dataChan, err := z.readFromRouterSocket(resp, path)
+	dataChan, doneChan, err := z.readFromRouterSocket(resp, path)
 	if err != nil {
 		fmt.Println(resp)
-		return nil, errors.New("readFromRouterSocket " + err.Error())
+		return nil, nil, errors.New("readFromRouterSocket " + err.Error())
 	}
 
-	return dataChan, nil
+	return dataChan, doneChan, nil
 
 }
 
@@ -334,12 +334,12 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 	return parsedResp, nil
 }
 
-func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-chan []byte, error) {
+func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-chan []byte, chan int, error) {
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	serverKey := ""
@@ -347,13 +347,13 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 		//Notify uri_path
 		err = dealer.SetIdentity(path)
 		if err != nil {
-			return nil, errors.New("dealer.SetIdentity " + err.Error())
+			return nil, nil, errors.New("dealer.SetIdentity " + err.Error())
 		}
 	} else {
 		//Observe
 		err = dealer.SetIdentity(string(header.Payload))
 		if err != nil {
-			return nil, errors.New("dealer.SetIdentity " + err.Error())
+			return nil, nil, errors.New("dealer.SetIdentity " + err.Error())
 		}
 	}
 
@@ -368,21 +368,22 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 	z.log("Using serverKey " + serverKey)
 	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = dealer.ClientAuthCurve(serverKey, clientPublic, clientSecret)
 	if err != nil {
-		return nil, errors.New("ClientAuthCurve " + err.Error())
+		return nil, nil, errors.New("ClientAuthCurve " + err.Error())
 	}
 
 	connError := dealer.Connect(z.DealerEndpoint)
 	if err != nil {
-		return nil, errors.New("dealer.Connect " + connError.Error())
+		return nil, nil, errors.New("dealer.Connect " + connError.Error())
 	}
 
 	dataChan := make(chan []byte)
-	go func(output chan<- []byte) {
+	doneChan := make(chan int)
+	go func() {
 		for {
 			z.log("Waiting for response on id " + string(header.Payload) + " .....")
 			resp, err := dealer.RecvBytes(0)
@@ -395,13 +396,18 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 				z.log("Error decoding response from dealer")
 				continue
 			}
-			output <- parsedResp.Payload
+
+			dataChan <- parsedResp.Payload
+
+			//noneblocking read of doneChan to check for a close signal from the caller
+			select {
+			case <-doneChan:
+				return
+			}
 		}
-	}(dataChan)
+	}()
 
-	dealer.Close()
-
-	return dataChan, nil
+	return dataChan, doneChan, nil
 }
 
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {
