@@ -103,6 +103,12 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	return z, nil
 }
 
+//Close will close the socket. Should be called once you are done with the client.
+// not calling this will lead to leaking TCP connections.
+func (z ZestClient) Close() error {
+	return z.ZMQsoc.Close()
+}
+
 func (z ZestClient) Post(token string, path string, payload []byte, contentFormat string) ([]byte, error) {
 
 	z.log("Posting")
@@ -392,6 +398,8 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 			output <- parsedResp.Payload
 		}
 	}(dataChan)
+
+	dealer.Close()
 
 	return dataChan, nil
 }

@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	zest ".."
 )
@@ -34,18 +36,23 @@ func main() {
 			fmt.Println(err.Error())
 		}
 		fmt.Println("created")
+		zestC.Close()
 	case "GET":
 		value, err := zestC.Get(*Token, *Path, *Format)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
 		fmt.Println(string(value))
+		zestC.Close()
+
 	case "DELETE":
 		err := zestC.Delete(*Token, *Path, *Format)
 		if err != nil {
 			fmt.Println(err.Error())
 		}
 		fmt.Println("deleted")
+		zestC.Close()
+
 	case "OBSERVE":
 
 		obsTypes := map[string]zest.ObserveMode{
@@ -67,6 +74,7 @@ func main() {
 		} else {
 			fmt.Println("Unsouported observe mode ")
 		}
+		zestC.Close()
 	case "NOTIFY":
 		dataChan, obsErr := zestC.Notify(*Token, *Path, *Format, 0)
 		if obsErr != nil {
@@ -76,7 +84,7 @@ func main() {
 		fmt.Println("Blocking waiting for data on Notify chan ", dataChan, " Error: ", obsErr)
 		resp := <-dataChan
 		fmt.Println("Value returned from notifyer: ", string(resp))
-
+		zestC.Close()
 	case "TEST":
 
 		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":91}"), *Format)
@@ -95,6 +103,34 @@ func main() {
 			fmt.Println(err.Error())
 		}
 		fmt.Println(string(value))
+		zestC.Close()
+
+	case "TESTWRITE":
+		i := 0
+		for {
+			data, err := zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":"+strconv.Itoa(i)+"}"), *Format)
+			if err != nil {
+				fmt.Println("[ERROR] " + err.Error())
+			} else {
+				fmt.Println("[DATA] " + string(data))
+			}
+			time.Sleep(time.Millisecond * 20)
+			i += 1
+		}
+		zestC.Close()
+
+	case "TESTREAD":
+		for {
+			data, err := zestC.Get(*Token, *Path, *Format)
+			if err != nil {
+				fmt.Println("[ERROR] " + err.Error())
+			} else {
+				fmt.Println("[DATA] " + string(data))
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		zestC.Close()
+
 	default:
 		fmt.Println("Unknown method try GET,POST,OBSERVE or NOTIFY")
 	}
