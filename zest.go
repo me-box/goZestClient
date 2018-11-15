@@ -440,13 +440,13 @@ func RecvBytesOverChan(soc *zmq.Socket) (chan []byte, chan error) {
 		resp, err := soc.RecvBytes(0)
 		if err != nil {
 			errChan <- err
-			close(dataChan)
-			close(errChan)
+			dataChan = nil
+			errChan = nil
 			return
 		}
 		dataChan <- resp
-		close(dataChan)
-		close(errChan)
+		dataChan = nil
+		errChan = nil
 	}()
 
 	return dataChan, errChan
