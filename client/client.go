@@ -25,6 +25,7 @@ func main() {
 	flag.Parse()
 
 	zestC, clientErr := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey, *Logging)
+	zestC2, clientErr := zest.New(*ReqEndpoint, *DealerEndpoint, *ServerKey, *Logging)
 	if clientErr != nil {
 		fmt.Println("Error creating client: ", clientErr.Error())
 		os.Exit(2)
@@ -70,8 +71,8 @@ func main() {
 			fmt.Println("Blocking waiting for data on chan ", dataChan)
 			for resp := range dataChan {
 				fmt.Println("Value returned from observer: ", string(resp))
-				doneChan <- 1
 			}
+			close(doneChan)
 		} else {
 			fmt.Println("Unsupported observe mode ")
 		}
@@ -85,8 +86,60 @@ func main() {
 		fmt.Println("Blocking waiting for data on Notify chan ", dataChan, " Error: ", obsErr)
 		resp := <-dataChan
 		fmt.Println("Value returned from notifyer: ", string(resp))
-		doneChan <- 1
+		close(doneChan)
 		zestC.Close()
+	case "NOTIFYTEST":
+
+		//listen for requests
+		go func() {
+			dataChan, doneChan, obsErr := zestC.Observe(*Token, "/notification/request/tosh/*", *Format, "notification", 0)
+			if obsErr != nil {
+				fmt.Println(" Error: ", obsErr.Error())
+				return
+			}
+
+			fmt.Println("Blocking waiting for data on chan ", dataChan)
+			for resp := range dataChan {
+				fmt.Println("GOT REQUEST: ", string(resp))
+				parts := strings.SplitAfterN(string(resp), " ", 4)
+				//REPLAY TO REQUEST
+				fmt.Println("REPLAYING on ", parts[2])
+				zestC.Post(*Token, parts[2], []byte(`{"result": true}`), *Format)
+			}
+			close(doneChan)
+
+		}()
+
+		//listen for responses
+		time.Sleep(time.Second * 1)
+		go func() {
+			i := 0
+			for {
+				i++
+				dataChan, _, obsErr := zestC2.Notify(*Token, "/notification/response/tosh/"+strconv.Itoa(i), *Format, 0)
+				if obsErr != nil {
+					fmt.Println("Response Error: ", obsErr.Error())
+					continue
+				}
+
+				fmt.Println("Notify blocking on ", dataChan, " waiting for /notification/response/tosh/"+strconv.Itoa(i))
+				resp := <-dataChan
+				fmt.Println("Got Response ", string(resp))
+			}
+		}()
+
+		//MAKE REQUEST
+		go func() {
+			i := 0
+			for {
+				time.Sleep(time.Second * 2)
+				i++
+				zestC2.Post(*Token, "/notification/request/tosh/"+strconv.Itoa(i), []byte(`{"active": true}`), *Format)
+			}
+		}()
+
+		block := make(chan int)
+		<-block
 	case "TEST":
 
 		zestC.Post(*Token, *Path, []byte("{\"name\":\"dave\", \"age\":91}"), *Format)
