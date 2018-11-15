@@ -80,6 +80,8 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 	if err != nil {
 		return z, err
 	}
+	z.ZMQsoc.SetRcvtimeo(time.Second * 10)
+	z.ZMQsoc.SetConnectTimeout(time.Second * 10)
 
 	z.ZMQsocMutex = &sync.Mutex{}
 
@@ -319,11 +321,21 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 		return zestHeader{}, err
 	}
 
-	//TODO ADD TIME OUT
-	resp, RecvErr := z.ZMQsoc.RecvBytes(0)
+	respChan, errChan := RecvBytesOverChan(z.ZMQsoc)
+	var resp []byte
+	var recvErr error
+	select {
+	case err := <-errChan:
+		recvErr = err
+	case resp = <-respChan:
+	case <-time.After(11 * time.Second):
+		z.log("timeout reading from router")
+	}
+
 	z.ZMQsocMutex.Unlock()
-	if RecvErr != nil {
-		return zestHeader{}, RecvErr
+
+	if recvErr != nil {
+		return zestHeader{}, recvErr
 	}
 
 	parsedResp, errResp := z.handleResponse(resp)
@@ -338,6 +350,9 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 
 	//TODO ADD TIME OUT
 	dealer, err := zmq.NewSocket(zmq.DEALER)
+	dealer.SetRcvtimeo(time.Second * 10)
+	dealer.SetConnectTimeout(time.Second * 10)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -383,31 +398,54 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 
 	dataChan := make(chan []byte)
 	doneChan := make(chan int)
+
 	go func() {
 		for {
 			z.log("Waiting for response on id " + string(header.Payload) + " .....")
-			resp, err := dealer.RecvBytes(0)
-			if err != nil {
-				z.log("Error reading from dealer")
-				continue
-			}
-			parsedResp, errResp := z.handleResponse(resp)
-			if errResp != nil {
-				z.log("Error decoding response from dealer")
-				continue
-			}
-
-			dataChan <- parsedResp.Payload
-
-			//noneblocking read of doneChan to check for a close signal from the caller
+			respChan, errChan := RecvBytesOverChan(dealer)
 			select {
+			case err := <-errChan:
+				if err.Error() != "resource temporarily unavailable" {
+					z.log("Error reading from dealer " + err.Error())
+				}
+				continue
+			case resp := <-respChan:
+				parsedResp, errResp := z.handleResponse(resp)
+				if errResp != nil {
+					z.log("Error decoding response from dealer")
+					continue
+				}
+				dataChan <- parsedResp.Payload
 			case <-doneChan:
+				z.log("got message on doneChan")
+				close(dataChan)
+				dealer.Close()
 				return
+			case <-time.After(11 * time.Second):
+				z.log("timeout reading from dealer")
+				continue
 			}
 		}
 	}()
 
 	return dataChan, doneChan, nil
+}
+
+func RecvBytesOverChan(soc *zmq.Socket) (chan []byte, chan error) {
+	dataChan := make(chan []byte)
+	errChan := make(chan error)
+	go func() {
+		resp, err := soc.RecvBytes(0)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		dataChan <- resp
+		close(dataChan)
+		close(errChan)
+	}()
+
+	return dataChan, errChan
 }
 
 func (z ZestClient) handleResponse(msg []byte) (zestHeader, error) {

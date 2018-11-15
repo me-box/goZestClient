@@ -54,7 +54,6 @@ func main() {
 		zestC.Close()
 
 	case "OBSERVE":
-
 		obsTypes := map[string]zest.ObserveMode{
 			"data":         zest.ObserveModeData,
 			"audit":        zest.ObserveModeAudit,
@@ -69,11 +68,12 @@ func main() {
 			}
 
 			fmt.Println("Blocking waiting for data on chan ", dataChan)
-			resp := <-dataChan
-			fmt.Println("Value returned from observer: ", string(resp))
-			doneChan <- 1
+			for resp := range dataChan {
+				fmt.Println("Value returned from observer: ", string(resp))
+				doneChan <- 1
+			}
 		} else {
-			fmt.Println("Unsouported observe mode ")
+			fmt.Println("Unsupported observe mode ")
 		}
 		zestC.Close()
 	case "NOTIFY":
