@@ -278,7 +278,6 @@ func (z ZestClient) Notify(token string, path string, contentFormat string, time
 
 	dataChan, doneChan, err := z.readFromRouterSocket(resp, path)
 	if err != nil {
-		fmt.Println(resp)
 		return nil, nil, errors.New("readFromRouterSocket " + err.Error())
 	}
 
@@ -405,27 +404,27 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 	doneChan := make(chan struct{})
 	go func() {
 		for {
-			fmt.Println("Waiting for response on id " + string(header.Payload) + " .....")
+			z.log("Waiting for response on id " + string(header.Payload) + " .....")
 			respChan, errChan := RecvBytesOverChan(dealer)
 			select {
 			case err := <-errChan:
 				if err.Error() != "resource temporarily unavailable" {
-					fmt.Println("Error reading from dealer " + err.Error())
+					z.log("Error reading from dealer " + err.Error())
 				}
 				continue
 			case resp := <-respChan:
 				parsedResp, errResp := z.handleResponse(resp)
 				if errResp != nil {
-					fmt.Println("Error decoding response from dealer")
+					z.log("Error decoding response from dealer")
 					continue
 				}
 				dataChan <- parsedResp.Payload
 			case <-doneChan:
-				fmt.Println("got message on doneChan")
+				z.log("got message on doneChan")
 				dealer.Close()
 				return
 			case <-time.After(11 * time.Second):
-				fmt.Println("timeout reading from dealer")
+				z.log("timeout reading from dealer")
 				continue
 			}
 		}
