@@ -345,8 +345,9 @@ func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) 
 
 func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-chan []byte, chan struct{}, error) {
 
+	dealerRcvtimeo := time.Second * 1
 	dealer, err := zmq.NewSocket(zmq.DEALER)
-	dealer.SetRcvtimeo(time.Second * 10)
+	dealer.SetRcvtimeo(dealerRcvtimeo)
 	dealer.SetConnectTimeout(time.Second * 10)
 
 	if err != nil {
@@ -395,6 +396,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 	dataChan := make(chan []byte)
 	doneChan := make(chan struct{})
 	go func() {
+		done := false
 		for {
 			z.log("Waiting for response on id " + string(header.Payload) + " .....")
 			respChan, errChan := RecvBytesOverChan(dealer)
@@ -414,13 +416,17 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 				continue
 			case <-doneChan:
 				z.log("got message on doneChan")
-				defer dealer.Close()
-				break
+				done = true
 			case <-time.After(11 * time.Second):
 				z.log("timeout reading from dealer")
 				continue
 			}
+			if done {
+				break
+			}
 		}
+		time.Sleep(dealerRcvtimeo * 2)
+		dealer.Close()
 	}()
 
 	return dataChan, doneChan, nil
