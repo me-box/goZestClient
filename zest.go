@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	zmq "github.com/pebbe/zmq4"
@@ -56,8 +55,6 @@ func pack_32(i uint32) []byte {
 }
 
 type ZestClient struct {
-	ZMQsoc         *zmq.Socket
-	ZMQsocMutex    *sync.Mutex
 	serverKey      string
 	Endpoint       string
 	DealerEndpoint string
@@ -73,42 +70,38 @@ func New(endpoint string, dealerEndpoint string, serverKey string, enableLogging
 
 	//cache the host name to save 10ms
 	z.hostname, _ = os.Hostname()
-
-	z.log("Connecting")
-	var err error
-	z.ZMQsoc, err = zmq.NewSocket(zmq.REQ)
-	if err != nil {
-		return z, err
-	}
-	z.ZMQsoc.SetRcvtimeo(time.Second * 10)
-	z.ZMQsoc.SetConnectTimeout(time.Second * 10)
-
-	z.ZMQsocMutex = &sync.Mutex{}
-
-	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
-	if err != nil {
-		return z, err
-	}
-
-	err = z.ZMQsoc.ClientAuthCurve(serverKey, clientPublic, clientSecret)
-	if err != nil {
-		return z, err
-	}
 	z.serverKey = serverKey
 	z.DealerEndpoint = dealerEndpoint
 	z.Endpoint = endpoint
-	err = z.ZMQsoc.Connect(endpoint)
-	if err != nil {
-		return z, err
-	}
 
 	return z, nil
 }
 
-//Close will close the socket. Should be called once you are done with the client.
-// not calling this will lead to leaking TCP connections.
-func (z ZestClient) Close() error {
-	return z.ZMQsoc.Close()
+func (z ZestClient) createSocket(t zmq.Type) (*zmq.Socket, error) {
+	z.log("Connecting")
+	ZMQsoc, err := zmq.NewSocket(zmq.REQ)
+	if err != nil {
+		return nil, err
+	}
+	ZMQsoc.SetRcvtimeo(time.Second * 10)
+	ZMQsoc.SetConnectTimeout(time.Second * 10)
+
+	clientPublic, clientSecret, err := zmq.NewCurveKeypair()
+	if err != nil {
+		return nil, err
+	}
+
+	err = ZMQsoc.ClientAuthCurve(z.serverKey, clientPublic, clientSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ZMQsoc.Connect(z.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	return ZMQsoc, nil
 }
 
 func (z ZestClient) Post(token string, path string, payload []byte, contentFormat string) ([]byte, error) {
@@ -287,16 +280,16 @@ func (z ZestClient) Notify(token string, path string, contentFormat string, time
 
 func (z ZestClient) sendRequest(msg []byte) error {
 
-	if z.ZMQsoc == nil {
-		return errors.New("Connection is closed can't send data")
+	ZMQsoc, err := z.createSocket(zmq.ROUTER)
+	if err != nil {
+		return errors.New("Can't connect so server")
 	}
+	defer ZMQsoc.Close()
 
 	z.log("Sending request:")
 	z.Hexlog(msg)
 
-	z.ZMQsocMutex.Lock()
-	_, err := z.ZMQsoc.SendBytes(msg, 0)
-	z.ZMQsocMutex.Unlock()
+	_, err = ZMQsoc.SendBytes(msg, 0)
 	if err != nil {
 		return err
 	}
@@ -306,22 +299,21 @@ func (z ZestClient) sendRequest(msg []byte) error {
 
 func (z ZestClient) sendRequestAndAwaitResponse(msg []byte) (zestHeader, error) {
 
-	if z.ZMQsoc == nil {
-		return zestHeader{}, errors.New("Connection is closed can't send data")
+	ZMQsoc, err := z.createSocket(zmq.ROUTER)
+	if err != nil {
+		return zestHeader{}, errors.New("Can't connect so server")
 	}
+	defer ZMQsoc.Close()
 
 	z.log("Sending request:")
 	z.Hexlog(msg)
 
-	z.ZMQsocMutex.Lock()
-	_, err := z.ZMQsoc.SendBytes(msg, 0)
+	_, err = ZMQsoc.SendBytes(msg, 0)
 	if err != nil {
-		z.ZMQsocMutex.Unlock()
 		return zestHeader{}, err
 	}
 
-	respChan, errChan := RecvBytesOverChan(z.ZMQsoc)
-	z.ZMQsocMutex.Unlock()
+	respChan, errChan := RecvBytesOverChan(ZMQsoc)
 	var resp []byte
 	var recvErr error
 	z.enableLogging = false
