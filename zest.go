@@ -419,6 +419,7 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 					continue
 				}
 				dataChan <- parsedResp.Payload
+				continue
 			case <-doneChan:
 				z.log("got message on doneChan")
 				dealer.Close()
@@ -445,8 +446,6 @@ func RecvBytesOverChan(soc *zmq.Socket) (chan []byte, chan error) {
 			return
 		}
 		dataChan <- resp
-		dataChan = nil
-		errChan = nil
 	}()
 
 	return dataChan, errChan
