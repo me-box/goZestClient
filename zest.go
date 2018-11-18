@@ -413,10 +413,12 @@ func (z *ZestClient) readFromRouterSocket(header zestHeader, path string) (<-cha
 					continue
 				}
 				dataChan <- parsedResp.Payload
+				done = true
 				continue
 			case <-doneChan:
 				z.log("got message on doneChan")
 				done = true
+				continue
 			case <-time.After(11 * time.Second):
 				z.log("timeout reading from dealer")
 				continue
