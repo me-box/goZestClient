@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	zest ".."
+	zest "github.com/me-box/goZestClient"
 )
 
 func main() {
